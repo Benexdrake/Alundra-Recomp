@@ -1,0 +1,48 @@
+{
+  "format_version": 1,
+  "game": {
+    "name": "Alundra",
+    "id": "SLES-01256",
+    "boot_exe": "SLES_012.56"
+  },
+  "marketing": {
+    "description": "",
+    "publisher": "",
+    "year": "",
+    "region": "USA",
+    "players": 1
+  },
+  "rom_identity": {
+    "cue_name": "Alundra.cue",
+    "bin_name": "game.bin",
+    "track_counts": [
+      1
+    ],
+    "require_cue": true,
+    "data_track": {
+      "size": 606049248,
+      "md5": "2589bcff97211726b85fad51435b56aa",
+      "sha1": "8f3fbe279fcd05659455909ddca7c6671b9030f7",
+      "crc32": "4b50d22e"
+    },
+    "disc_fp": "c2db29fafe0c26353d859473cf5a7389bb8571b67de1af5ab27e08ad8a474357"
+  },
+  "exe": {
+    "load_address": "0x80020000",
+    "entry_pc": "0x800360F4",
+    "text_size": "0x0012B000",
+    "stack_base": "0x801FFFF0"
+  },
+  "seeds": {
+    "count": 541,
+    "source": "boot_exe_jal"
+  },
+  "warnings": [
+    "cue has only 1 TRACK \u2014 Track-01-only dumps fail multi-track netplay/catalog gates; prefer a full Redump cue."
+  ],
+  "notes": [
+    "entry_pc/load_address/text_size/stack_base taken from PS-X EXE header.",
+    "seeds are first-pass boot-EXE JAL targets (+ entry); expect to grow as overlays / runtime paths are discovered.",
+    "required_disc_fp is psxrecomp-toc-v1 (matches runtime DiscIdentity)."
+  ]
+}

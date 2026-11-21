@@ -1,0 +1,35 @@
+format_version = 11
+id = "alundra.enhancement.widescreen"
+version = "1.0.0"
+name = "Widescreen"
+author = "Alundra recomp"
+description = "Native-wide 16:9 presentation. Experimental: 2D backdrops and some culls are not yet widened."
+resolver = "declarative"
+save_compatibility = "shared"
+
+[[target]]
+game_id = "SLES-01256"
+
+[[feature]]
+id = "widescreen"
+name = "Widescreen 16:9"
+description = "Renders the game in 16:9 instead of 4:3. Experimental."
+group = "Visual"
+channel = "experimental"
+default_enabled = true
+
+[[plugin]]
+feature = "widescreen"
+id = "alundra.widescreen"
+
+[[feature]]
+id = "hud_corners"
+name = "HUD in Bildschirmecken"
+description = "Moves the HUD to the screen corners in 16:9 (hearts top left, items bottom left, gilder bottom right). Needs Widescreen."
+group = "Visual"
+channel = "experimental"
+default_enabled = true
+
+[[plugin]]
+feature = "hud_corners"
+id = "alundra.hud"
