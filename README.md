@@ -10,14 +10,35 @@ Static recompilation of **Alundra** built on
 [psxrecomp](https://github.com/mstan/psxrecomp) and
 [recomp-ui](https://github.com/RetroPortingToolKit/recomp-ui).
 
-_Add a short pitch in catalog_identity.json / README._
+Action-adventure by Matrix Software (PlayStation, 1997), recompiled to run natively with modern enhancements.
 
 | | |
 |---|---|
 | Players | 1 |
-| Region | USA |
+| Region | Europe (German, SLES-01256) |
 | Publisher | - |
 | Year | - |
+
+## What is built in
+
+**Status: actively played.** Every widescreen-related bug found while playing has been fixed.
+
+- **16:9 widescreen:** the tile renderer is widened (21 tile columns), full 2D mode.
+- **Soft map edge:** beyond the edge of a map the screen fades smoothly to black instead of showing garbage or stripes.
+- **Clouds / shadow overlay** widened to the full 16:9 width.
+- **Save/load room fog** (the mist in the memory/load room) covers the whole width without flicker.
+- **HUD in the screen corners** (feature `hud_corners`): item slots bottom left, hearts top left, gilder bottom right; the 10-HP stone and the menu slide are handled.
+- **Ring / light mask** stretched to 16:9.
+- **Fast savegame loading** (memory card scan no longer slows to a crawl).
+- **60 fps** instead of PAL 50 Hz.
+
+Not yet tested: sprite/object pop-in at the edges, menus and dialogs with the new HUD, FMV, audio.
+
+### Common to all recomps in this family
+
+- **60 fps:** PAL titles are forced to NTSC 60 Hz timing (`PSX_FORCE_60HZ=0` restores 50 Hz); the game runs ~20 % faster than on a PAL console.
+- **Faster loading:** CD speed-up and turbo while the memory card is being read.
+- **16:9** is provided by a trusted mod plugin (fixed display aspect 16:9) together with widescreen culling hooks; each feature can be switched off in `mods/state.toml`.
 
 Scaffolded with the New Project Layout. See
 `psxrecomp/docs/GAME_PROJECT_SETUP.md` for the full flow.
