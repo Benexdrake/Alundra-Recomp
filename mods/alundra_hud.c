@@ -91,8 +91,12 @@ static void alundra_hud_post(struct CPUState* cpu, uint32_t address) {
             /* Big stone (10 HP): texture u=96 v=40, clut 31186. Before the first menu
              * the game writes it at (51,192) instead of (104,16), so it is recognised
              * by texture, not by position. */
-            int stone = verts == 1 && x < 0xF0 &&
-                        psx_mod_read_word(a + 12u) == ((31186u << 16) | (40u << 8) | 96u);
+            /* The clut varies with game progress/HP state (grey stone = other clut),
+             * so only u, v and the 16x16 size are matched. */
+            int stone = verts == 1 && x < 0xF0 && cmd == 0x65u &&
+                        ((psx_mod_read_word(a + 12u) & 0xFFFFu) == ((40u << 8) | 96u) ||   /* orange */
+                         (psx_mod_read_word(a + 12u) & 0xFFFFu) == ((40u << 8) | 144u)) && /* grey */
+                        psx_mod_read_word(a + 16u) == 0x00100010u;
             if (stone ? (y >= -64 && y < 0xF0 && x >= -64) : (y >= (hidden ? -64 : 0) && y < 0x40 && x >= 0 && x < 0x140)) {
                 int dx, dy;
                 if (hidden)         { dx = 0;                           dy = -400; }
