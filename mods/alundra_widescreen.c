@@ -9,6 +9,7 @@
  * (0x800203F0). To fill a 16:9 view we draw more columns (EXTRA_COLS wider) and
  * start up to LEFT_COLS columns left of the camera, using a private X table.
  */
+#include <stdlib.h>
 #include "mod_plugins.h"
 #include "cpu_state.h"
 #include "gpu.h"
@@ -54,7 +55,7 @@ static uint32_t g_alundra_cloud;
  * edge columns at x=0 and x=304, nothing beyond), so 16:9 shows bright side strips. Count the
  * emitted cells per frame (s2 = emitted counter) and let alundra_after_tiles add a flat
  * subtractive black quad on the empty side(s). */
-#define ALU_DARK_FILL_COLOR 0xE6u   /* ~90 % black (255 * 0.9) */
+#define ALU_DARK_FILL_COLOR 0x66u   /* ~40 % black (255 * 0.4) */
 static uint32_t g_alundra_fill;     /* 2 x 32 B */
 static uint32_t g_cl_s2;
 static uint32_t g_cl_now[4], g_cl_snap[4]; /* colL (x=0), outL (x<0), colR (x=304), outR (x>=320) */
@@ -93,6 +94,7 @@ static void alundra_cloud_base(struct CPUState* cpu, uint32_t address) {
     cpu->gpr[R_T0] = g_alundra_cloud + layer * ALU_CLOUD_LAYER_SZ;
 }
 
+static uint32_t g_alundra_tilebuf;
 /* Map is 52 columns wide (camera X max 927 = 52*24 - 321). Reading past it hits
  * the next row's data and draws garbage, so clamp the column count to the map end. */
 #define ALU_MAP_COLS 52
@@ -429,6 +431,7 @@ static const uint32_t g_alu_room_mine1[ALU_FILL_STOPS] = {0x000808u, 0x000808u, 
 static const uint32_t* alundra_room_clear(void) {
     switch (alundra_room_sig()) {
     case 0x877DDF27u: /* mine room, left edge too bright (grey-green) next to near-black tiles */
+    case 0x56AA69AFu: /* mine room 3 (2026-11-22): outside (0,8,0) left vs tiles (8,8,0), right black */
         return g_alu_room_mine1;
     default:
         return g_alu_clear;
@@ -448,6 +451,30 @@ static void alundra_def_add(uint32_t pkt) {
     g_alu_def_tail = pkt + 3u * 36u;
 }
 
+static void alundra_dark_fill(uint32_t* pnext, uint32_t* pfirst, int32_t m) {
+    uint32_t next = *pnext, first = *pfirst;
+    if (g_alundra_fill) {
+        int fill_l = g_cl_snap[0] >= 12 && g_cl_snap[1] == 0;
+        int fill_r = g_cl_snap[2] >= 12 && g_cl_snap[3] == 0;
+        for (int side = 0; side < 2; side++) {
+            if (!(side ? fill_r : fill_l)) continue;
+            int32_t x0 = side ? 320 : -m - 8, x1 = side ? 320 + m + 8 : 0;
+            uint32_t pkt = g_alundra_fill + (uint32_t)side * 32u;
+            uint32_t c = ALU_DARK_FILL_COLOR * 0x010101u;
+            psx_mod_write_word(pkt, (6u << 24) | (next & 0x00FFFFFFu));
+            psx_mod_write_word(pkt + 4u, 0xE1000040u);
+            psx_mod_write_word(pkt + 8u, c | 0x2A000000u);
+            psx_mod_write_word(pkt + 12u, (uint32_t)x0 & 0xFFFFu);
+            psx_mod_write_word(pkt + 16u, (uint32_t)x1 & 0xFFFFu);
+            psx_mod_write_word(pkt + 20u, (240u << 16) | ((uint32_t)x0 & 0xFFFFu));
+            psx_mod_write_word(pkt + 24u, (240u << 16) | ((uint32_t)x1 & 0xFFFFu));
+            next = pkt & 0x00FFFFFFu;
+            first = pkt;
+        }
+    }
+    *pnext = next; *pfirst = first;
+}
+
 static void alundra_after_tiles(struct CPUState* cpu, uint32_t address) {
     (void)address;
     if (!g_alundra_edge) return;
@@ -463,6 +490,10 @@ static void alundra_after_tiles(struct CPUState* cpu, uint32_t address) {
     int32_t cam = (int32_t)psx_mod_read_word(ALU_CAM_X);
     int32_t m = psx_mod_widescreen_view_x_margin();
     int32_t xl = -cam, xr = ALU_MAP_PX - cam;
+    /* Mine room 3: map columns 0..7 are empty (black), the room starts at column 8. Treat that
+     * as the left edge and column 22 as the right edge (empty black columns outside), fill = (8,8,0)
+     * always (no ring mask in this room). */
+    if (rsig == 0x56AA69AFu) { xl = 8 * ALU_TILE_W - cam; xr = 22 * ALU_TILE_W - cam; defer = 1; clr = g_alu_room_mine1; }
     /* Bright border (tree/hedge wall at the map edge): same treatment as the village, outside =
      * black plus soft gradient quad. Measured just inside the quad zone (quad adds 0 there, no
      * feedback). Dark borders (mine, (8,8,0) walls) keep the old behaviour. */
@@ -503,11 +534,12 @@ static void alundra_after_tiles(struct CPUState* cpu, uint32_t address) {
         next = pkt & 0x00FFFFFFu;
         first = pkt;
     }
+    if (rsig == 0x56AA69AFu) alundra_dark_fill(&next, &first, m); /* under the edge quads, over the (8,8,0) fill */
     uint32_t rgb[ALU_FILL_STOPS];
     if (xr > 4 && xr < 320 + m) {
         if (alundra_edge_sample(xr <= 316 ? xr - 3 : 316, rgb)) { alundra_blend(g_alu_col_r, rgb, g_alu_rgb_r_ok); g_alu_rgb_r_ok = 1; }
     }
-    if (!drew_r && xr > 4 && xr < 320 + m && (g_alu_rgb_r_ok || fixed_r)) {
+    if ((!drew_r || rsig == 0x56AA69AFu) && xr > 4 && xr < 320 + m && (g_alu_rgb_r_ok || fixed_r || rsig == 0x56AA69AFu)) {
         uint32_t pkt = g_alundra_edge + 288u;
         alundra_outside_build(pkt, xr, 320 + m, fixed_r ? g_alu_black : (defer ? clr : g_alu_col_r), next);
         next = pkt & 0x00FFFFFFu;
@@ -518,7 +550,7 @@ static void alundra_after_tiles(struct CPUState* cpu, uint32_t address) {
     if (xl > -m && xl < 316) {
         if (alundra_edge_sample(xl >= -1 ? xl + 2 : 2, rgb)) { alundra_blend(g_alu_col_l, rgb, g_alu_rgb_l_ok); g_alu_rgb_l_ok = 1; }
     }
-    if (!drew_l && xl > -m && xl < 316 && (g_alu_rgb_l_ok || fixed_l)) {
+    if ((!drew_l || rsig == 0x56AA69AFu) && xl > -m && xl < 316 && (g_alu_rgb_l_ok || fixed_l || rsig == 0x56AA69AFu)) {
         uint32_t pkt = g_alundra_edge + 128u;
         alundra_outside_build(pkt, -m, xl, fixed_l ? g_alu_black : (defer ? clr : g_alu_col_l), next);
         next = pkt & 0x00FFFFFFu;
@@ -532,25 +564,7 @@ static void alundra_after_tiles(struct CPUState* cpu, uint32_t address) {
         next = pkt & 0x00FFFFFFu;
         first = pkt;
     }
-    if (g_alundra_fill) {
-        int fill_l = g_cl_snap[0] >= 12 && g_cl_snap[1] == 0;
-        int fill_r = g_cl_snap[2] >= 12 && g_cl_snap[3] == 0;
-        for (int side = 0; side < 2; side++) {
-            if (!(side ? fill_r : fill_l)) continue;
-            int32_t x0 = side ? 320 : -m - 8, x1 = side ? 320 + m + 8 : 0;
-            uint32_t pkt = g_alundra_fill + (uint32_t)side * 32u;
-            uint32_t c = ALU_DARK_FILL_COLOR * 0x010101u;
-            psx_mod_write_word(pkt, (6u << 24) | (next & 0x00FFFFFFu));
-            psx_mod_write_word(pkt + 4u, 0xE1000040u);
-            psx_mod_write_word(pkt + 8u, c | 0x2A000000u);
-            psx_mod_write_word(pkt + 12u, (uint32_t)x0 & 0xFFFFu);
-            psx_mod_write_word(pkt + 16u, (uint32_t)x1 & 0xFFFFu);
-            psx_mod_write_word(pkt + 20u, (240u << 16) | ((uint32_t)x0 & 0xFFFFu));
-            psx_mod_write_word(pkt + 24u, (240u << 16) | ((uint32_t)x1 & 0xFFFFu));
-            next = pkt & 0x00FFFFFFu;
-            first = pkt;
-        }
-    }
+    if (rsig != 0x56AA69AFu) alundra_dark_fill(&next, &first, m);
     if (first)
         psx_mod_write_word(slot, (head & 0xFF000000u) | (first & 0x00FFFFFFu));
 }
@@ -708,13 +722,56 @@ static void alundra_shadow_part(struct CPUState* cpu, uint32_t address) {
     }
 }
 
+/* Tile packet buffers: the game gives each display parity 12000 B (600 tile packets, 20 B) followed by
+ * a 1600 B pool of 8-byte E1 texpage packets (s1 = s0 + 12000), with no bounds check. 4:3 needs
+ * up to ~550 packets; 21 columns x 2 tile layers need more, so the buffer overran into the E1 pool and then
+ * the game variables behind it (camera, palette table...), which the GPU walker then executed as
+ * commands (VRAM copy -> corrupted tile pages). Both parities are moved into a private arena. */
+#define ALU_TILEBUF_TILES   1500u
+#define ALU_TILEBUF_E1      800u
+#define ALU_TILEBUF_TILE_B  (ALU_TILEBUF_TILES * 20u)
+#define ALU_TILEBUF_STRIDE  (ALU_TILEBUF_TILE_B + ALU_TILEBUF_E1 * 8u + 32u)
+/* ADDU s1,v0,v1 at 0x8002CFD8: v0 = 13600 * parity, s0 = 0x800DD878-based buffer already set.
+ * Make s0 = arena base of this parity and s1 = base + tile bytes (E1 pool start). */
+static void alundra_tilebuf(struct CPUState* cpu, uint32_t address) {
+    (void)address;
+    if (!g_alundra_tilebuf || getenv("ALU_NO_TILEBUF")) return;
+    uint32_t base = g_alundra_tilebuf + (cpu->gpr[2] ? ALU_TILEBUF_STRIDE : 0u);
+    if (psx_mod_read_word(base + 4u) != 0x65808080u) {
+        /* The game pre-initialises its tile packets (n=4, 0x65 808080, 24x16); its draw loop only
+         * writes x/y/u/v/clut and the link. Same template for the private buffer (done lazily:
+         * the arena is cleared after activation). */
+        for (uint32_t i = 0; i < ALU_TILEBUF_TILES; i++) {
+            uint32_t pk = base + i * 20u;
+            psx_mod_write_word(pk, 0x04000000u);
+            psx_mod_write_word(pk + 4u, 0x65808080u);
+            psx_mod_write_word(pk + 16u, 0x00100018u);
+        }
+    }
+    cpu->gpr[16] = base;
+    cpu->gpr[2] = base;
+    cpu->gpr[3] = ALU_TILEBUF_TILE_B;
+}
+
 static void alundra_widescreen_activate(void) {
     if (!psx_mod_set_fixed_display_aspect(16, 9)) {
         fprintf(stdout, "alundra: widescreen: runtime rejected 16:9 display aspect\n");
         return;
     }
     g_alundra_xtab = psx_mod_alloc_guest_memory(ALU_TABLE_LEN * 2u, 4u);
+    g_alundra_tilebuf = psx_mod_alloc_gpu_dma_memory(2u * ALU_TILEBUF_STRIDE, 16u);
     g_alundra_edge = psx_mod_alloc_gpu_dma_memory(448u, 16u);
+    if (g_alundra_tilebuf) {
+        /* The game pre-initialises its tile packets (n=4, 0x65 808080, 24x16); the draw loop only
+         * writes x/y/u/v/clut and the link. Same template for the private buffers. */
+        for (uint32_t par = 0; par < 2u; par++)
+            for (uint32_t i = 0; i < ALU_TILEBUF_TILES; i++) {
+                uint32_t pk = g_alundra_tilebuf + par * ALU_TILEBUF_STRIDE + i * 20u;
+                psx_mod_write_word(pk, 0x04000000u);
+                psx_mod_write_word(pk + 4u, 0x65808080u);
+                psx_mod_write_word(pk + 16u, 0x00100018u);
+            }
+    }
     g_alundra_strip = psx_mod_alloc_gpu_dma_memory(64u, 16u);
     g_alundra_fill = psx_mod_alloc_gpu_dma_memory(64u, 16u);
     g_alundra_mask = psx_mod_alloc_gpu_dma_memory(ALU_MASK_QUADS * ALU_MASK_QUAD_SZ, 16u);
@@ -740,6 +797,8 @@ PSX_MOD_CONSTRUCTOR(alundra_register_widescreen_plugin) {
                                               0xAFB80018u, alundra_cols_14);
     (void)psx_mod_register_instruction_plugin("alundra.widescreen", 0x8002CEF0u,
                                               0xAFB60010u, alundra_first_col);
+    (void)psx_mod_register_instruction_plugin("alundra.widescreen", 0x8002CFD8u,
+                                              0x00438821u, alundra_tilebuf);
     (void)psx_mod_register_instruction_plugin("alundra.widescreen", 0x8002D14Cu,
                                               0x2609000Du, alundra_use_xtab);
 #if ALU_EDGE_TILE_SHADE
