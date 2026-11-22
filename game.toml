@@ -33,7 +33,7 @@ known_crc32 = [
 seeds = "seeds/ghidra_funcs.txt"
 out_dir = "generated"
 strict = true
-mod_instruction_sites = ["0x8002CED0", "0x8002CEF0", "0x8002CF04", "0x8002D14C", "0x8002D150", "0x8002D220", "0x8002D390", "0x8005C538", "0x8005C5F4", "0x8005C4E8", "0x8002D444", "0x800262EC", "0x8005D5E0", "0x8004C0C0", "0x8004C220"]
+mod_instruction_sites = ["0x8002CED0", "0x8002CEF0", "0x8002CF04", "0x8002D14C", "0x8002D150", "0x8002D220", "0x8002D390", "0x8005C538", "0x8005C5F4", "0x8005C4E8", "0x8002D444", "0x800262EC", "0x8005D5E0", "0x8004C0C0", "0x8004C220", "0x8002DDF4"]
 
 [runtime]
 window_title = "Alundra Recompiled"

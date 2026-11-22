@@ -37,6 +37,7 @@ static uint32_t g_alundra_xtab;
 #define ALU_CLOUD_PKT       16u
 #define ALU_CLOUD_LAYER_SZ  (ALU_CLOUD_COLS * ALU_CLOUD_ROWS * ALU_CLOUD_PKT)
 #define ALU_CLOUD_MAPW      40
+#define R_A2 6
 #define R_V0 2
 #define R_A3 7
 #define R_T0 8
@@ -217,32 +218,89 @@ static int alundra_tiles_overlap(uint32_t ot, int32_t x0, int32_t x1) {
  * slightly different dark colour (e.g. grey-brown (8,8,0)): visible hard edge. Where no gradient
  * quad is drawn, paint the outside with the colour the border column has on screen. The colour
  * comes from the previous frame in VRAM (mode of a column just inside the edge). */
-static int alundra_edge_sample(int32_t sx, uint32_t* rgb24) {
+#define ALU_FILL_STOPS 5
+static int alundra_edge_sample(int32_t sx, uint32_t* col) {
     GpuDrawingEnvironment env;
     gpu_get_drawing_environment(&env);
-    int vx0 = (int)env.area.left, vy0 = (int)env.area.top;
-    uint16_t v[15]; int n = 0;
-    for (int y = 8; y < 232; y += 16) v[n++] = gpu_vram_peek(vx0 + sx, vy0 + y);
-    uint16_t best = v[0]; int bc = 0;
-    for (int i = 0; i < n; i++) {
-        int c = 0;
-        for (int j = 0; j < n; j++) if (v[j] == v[i]) c++;
-        if (c > bc) { bc = c; best = v[i]; }
+    /* Dialogs set a small clip window (area.left/top is then NOT the buffer origin).
+     * The two display buffers sit at x=0, y=0 / y=240: pick by area.top only. */
+    int vy0 = (int)env.area.top >= 240 ? 240 : 0;
+    /* The border column has a vertical gradient (vignette): sample 5 stops (y = 0,60,..,240), each
+     * the mean of nearby rows, and draw the fill as a vertical gouraud gradient. */
+    for (int k = 0; k < ALU_FILL_STOPS; k++) {
+        int y0 = 60 * k - 12, y1 = 60 * k + 12;
+        if (y0 < 0) y0 = 0;
+        if (y1 > 239) y1 = 239;
+        /* median per channel: HUD pieces drawn at x<20 (item slots) must not tint the fill */
+        int cr[16], cg[16], cb[16], n = 0;
+        for (int y = y0; y <= y1 && n < 16; y += 2) {
+            uint16_t c = gpu_vram_peek(sx, vy0 + y);
+            cr[n] = c & 31; cg[n] = (c >> 5) & 31; cb[n] = (c >> 10) & 31; n++;
+        }
+        for (int i = 1; i < n; i++) for (int j = i; j > 0; j--) {
+            if (cr[j] < cr[j-1]) { int t = cr[j]; cr[j] = cr[j-1]; cr[j-1] = t; }
+            if (cg[j] < cg[j-1]) { int t = cg[j]; cg[j] = cg[j-1]; cg[j-1] = t; }
+            if (cb[j] < cb[j-1]) { int t = cb[j]; cb[j] = cb[j-1]; cb[j-1] = t; }
+        }
+        uint32_t r = (uint32_t)cr[n / 2] << 3, g = (uint32_t)cg[n / 2] << 3, b = (uint32_t)cb[n / 2] << 3;
+        col[k] = (b << 16) | (g << 8) | r;
     }
-    uint32_t r = (best & 31u) << 3, g = ((best >> 5) & 31u) << 3, b = ((best >> 10) & 31u) << 3;
-    *rgb24 = (b << 16) | (g << 8) | r;
     return 1;
 }
 
-static uint32_t g_alu_rgb_l, g_alu_rgb_r;
+/* Dark border zone (e.g. mine walls): a subtractive quad over near-black tiles only paints a
+ * black bar, and the tile-variety heuristic flips on/off while scrolling. Measure the brightness
+ * just INSIDE the quad zone (the quad contributes 0 there, so no feedback via VRAM). */
+static int alundra_zone_dark(int32_t sx) {
+    if (sx < 2 || sx > 317) return 0;
+    GpuDrawingEnvironment env;
+    gpu_get_drawing_environment(&env);
+    int vy0 = (int)env.area.top >= 240 ? 240 : 0;
+    int sum = 0, n = 0;
+    for (int y = 8; y < 232; y += 16) {
+        uint16_t c = gpu_vram_peek(sx, vy0 + y);
+        int r = c & 31, g = (c >> 5) & 31, b = (c >> 10) & 31;
+        sum += r > g ? (r > b ? r : b) : (g > b ? g : b);
+        n++;
+    }
+    return sum < 7 * n;
+}
+
+static uint32_t g_alu_col_l[ALU_FILL_STOPS], g_alu_col_r[ALU_FILL_STOPS];
+/* 3:1 blend of the stored fill colours with a new sample (no frame-to-frame jumps) */
+static void alundra_blend(uint32_t* old, const uint32_t* nw, int have) {
+    for (int k = 0; k < ALU_FILL_STOPS; k++) {
+        if (!have) { old[k] = nw[k]; continue; }
+        uint32_t out = 0;
+        for (int sh = 0; sh < 24; sh += 8) {
+            /* move 1/4 towards the new value, at least 1 step (plain rounding stalled a few levels off) */
+            int o = (int)((old[k] >> sh) & 0xFFu), d = (int)((nw[k] >> sh) & 0xFFu) - o;
+            int st = d / 4;
+            if (st == 0 && d != 0) st = d > 0 ? 1 : -1;
+            out |= (uint32_t)(o + st) << sh;
+        }
+        old[k] = out;
+    }
+}
 static int g_alu_rgb_l_ok, g_alu_rgb_r_ok;
 
-static void alundra_outside_build(uint32_t pkt, int32_t x0, int32_t x1, uint32_t rgb) {
-    psx_mod_write_word(pkt + 4u,  rgb | 0x28000000u);
-    psx_mod_write_word(pkt + 8u,  (0u << 16) | ((uint32_t)x0 & 0xFFFFu));
-    psx_mod_write_word(pkt + 12u, (0u << 16) | ((uint32_t)x1 & 0xFFFFu));
-    psx_mod_write_word(pkt + 16u, (240u << 16) | ((uint32_t)x0 & 0xFFFFu));
-    psx_mod_write_word(pkt + 20u, (240u << 16) | ((uint32_t)x1 & 0xFFFFu));
+/* Vertical gouraud gradient (4 quads, 36 B each) over x0..x1, chained in front of 'next'. */
+#define ALU_FILL_BYTES 144u
+static void alundra_outside_build(uint32_t pkt, int32_t x0, int32_t x1, const uint32_t* col, uint32_t next) {
+    uint32_t ux0 = (uint32_t)x0 & 0xFFFFu, ux1 = (uint32_t)x1 & 0xFFFFu;
+    for (uint32_t k = 0; k < 4u; k++) {
+        uint32_t q = pkt + k * 36u;
+        uint32_t yt = 60u * k, yb = 60u * (k + 1u);
+        psx_mod_write_word(q, (8u << 24) | (k < 3u ? ((q + 36u) & 0x00FFFFFFu) : next));
+        psx_mod_write_word(q + 4u,  col[k] | 0x38000000u);
+        psx_mod_write_word(q + 8u,  (yt << 16) | ux0);
+        psx_mod_write_word(q + 12u, col[k]);
+        psx_mod_write_word(q + 16u, (yt << 16) | ux1);
+        psx_mod_write_word(q + 20u, col[k + 1u]);
+        psx_mod_write_word(q + 24u, (yb << 16) | ux0);
+        psx_mod_write_word(q + 28u, col[k + 1u]);
+        psx_mod_write_word(q + 32u, (yb << 16) | ux1);
+    }
 }
 
 /* Stale outermost tile column: the game draws 15 columns, the last one lies outside 4:3. In 16:9
@@ -308,9 +366,23 @@ static int32_t alundra_fix_stale_col(uint32_t ot) {
     return xmax;
 }
 
+/* The ring/light mask overlay (slot 0, drawn after slot 959) also covers the outside zone, but the
+ * fill colour is sampled from VRAM where the mask was already applied: drawn under the mask it
+ * gets the mask twice (light strip in the mine). While the mask is active, the fill packets are
+ * therefore linked right behind the first mask quad (after the mask, before the HUD). */
+static uint32_t g_alu_def_head, g_alu_def_tail;
+static uint32_t g_alu_mask_prev, g_alu_mask_now;
+static void alundra_def_add(uint32_t pkt) {
+    if (g_alu_def_head) psx_mod_write_word(g_alu_def_tail, (8u << 24) | (pkt & 0x00FFFFFFu));
+    else g_alu_def_head = pkt;
+    g_alu_def_tail = pkt + 3u * 36u;
+}
+
 static void alundra_after_tiles(struct CPUState* cpu, uint32_t address) {
     (void)address;
     if (!g_alundra_edge) return;
+    g_alu_mask_prev = g_alu_mask_now; g_alu_mask_now = 0; g_alu_def_head = 0;
+    int defer = g_alu_mask_prev != 0;
     uint32_t ot = psx_mod_read_word(cpu->gpr[29] + 0x58u);
     if ((ot & 0xFF000000u) != 0x80000000u) return;
     int32_t xmax = alundra_fix_stale_col(ot);
@@ -324,7 +396,8 @@ static void alundra_after_tiles(struct CPUState* cpu, uint32_t address) {
     /* build right first so that the left ends up first in the chain */
     int32_t xrs = xr, xls = xl;
     int drew_r = 0, drew_l = 0;
-    if (xrs - ALU_EDGE_W < 320 + m && xrs > -m && alundra_tiles_overlap(ot, xrs - ALU_EDGE_W, xrs)) {
+    if (xrs - ALU_EDGE_W < 320 + m && xrs > -m && alundra_tiles_overlap(ot, xrs - ALU_EDGE_W, xrs) &&
+        !alundra_zone_dark(xrs - ALU_EDGE_W - 2)) {
         drew_r = 1;
         uint32_t pkt = g_alundra_edge + 64u;
         alundra_edge_build(pkt, xrs, xrs - ALU_EDGE_W);
@@ -332,7 +405,8 @@ static void alundra_after_tiles(struct CPUState* cpu, uint32_t address) {
         next = pkt & 0x00FFFFFFu;
         first = pkt;
     }
-    if (xls + ALU_EDGE_W > -m && xls < 320 + m && alundra_tiles_overlap(ot, xls, xls + ALU_EDGE_W)) {
+    if (xls + ALU_EDGE_W > -m && xls < 320 + m && alundra_tiles_overlap(ot, xls, xls + ALU_EDGE_W) &&
+        !alundra_zone_dark(xls + ALU_EDGE_W + 2)) {
         drew_l = 1;
         uint32_t pkt = g_alundra_edge;
         alundra_edge_build(pkt, xls, xls + ALU_EDGE_W);
@@ -340,33 +414,37 @@ static void alundra_after_tiles(struct CPUState* cpu, uint32_t address) {
         next = pkt & 0x00FFFFFFu;
         first = pkt;
     }
-    uint32_t rgb;
-    if (xr <= 316 && xr > 4) { if (alundra_edge_sample(xr - 3, &rgb)) { g_alu_rgb_r = rgb; g_alu_rgb_r_ok = 1; } }
-    if (!drew_r && xr > 4 && xr < 320 + m && g_alu_rgb_r_ok) {
-        rgb = g_alu_rgb_r;
-        uint32_t pkt = g_alundra_edge + 192u;
-        alundra_outside_build(pkt, xr, 320 + m, rgb);
-        psx_mod_write_word(pkt, (5u << 24) | next);
-        next = pkt & 0x00FFFFFFu;
-        first = pkt;
+    uint32_t rgb[ALU_FILL_STOPS];
+    if (xr > 4 && xr < 320 + m) {
+        if (alundra_edge_sample(xr <= 316 ? xr - 3 : 316, rgb)) { alundra_blend(g_alu_col_r, rgb, g_alu_rgb_r_ok); g_alu_rgb_r_ok = 1; }
     }
-    if (xl >= -1 && xl < 316) { if (alundra_edge_sample(xl + 2, &rgb)) { g_alu_rgb_l = rgb; g_alu_rgb_l_ok = 1; } }
-    if (!drew_l && xl > -m && xl < 316 && g_alu_rgb_l_ok) {
-        rgb = g_alu_rgb_l;
-        uint32_t pkt = g_alundra_edge + 128u;
-        alundra_outside_build(pkt, -m, xl, rgb);
-        psx_mod_write_word(pkt, (5u << 24) | next);
+    if (!drew_r && xr > 4 && xr < 320 + m && g_alu_rgb_r_ok) {
+        uint32_t pkt = g_alundra_edge + 288u;
+        if (defer) { alundra_outside_build(pkt, xr, 320 + m, g_alu_col_r, 0u); alundra_def_add(pkt); }
+        else { alundra_outside_build(pkt, xr, 320 + m, g_alu_col_r, next);
         next = pkt & 0x00FFFFFFu;
-        first = pkt;
+        first = pkt; }
+    }
+    /* Edge already left of the 4:3 view (camera X > 0): use the outermost visible column (x=2)
+     * so the fill colour exists even if this edge was never on screen since the start. */
+    if (xl > -m && xl < 316) {
+        if (alundra_edge_sample(xl >= -1 ? xl + 2 : 2, rgb)) { alundra_blend(g_alu_col_l, rgb, g_alu_rgb_l_ok); g_alu_rgb_l_ok = 1; }
+    }
+    if (!drew_l && xl > -m && xl < 316 && g_alu_rgb_l_ok) {
+        uint32_t pkt = g_alundra_edge + 128u;
+        if (defer) { alundra_outside_build(pkt, -m, xl, g_alu_col_l, 0u); alundra_def_add(pkt); }
+        else { alundra_outside_build(pkt, -m, xl, g_alu_col_l, next);
+        next = pkt & 0x00FFFFFFu;
+        first = pkt; }
     }
     /* tiles end inside the 16:9 view (small scenes draw only 15 columns): fill the gap */
     if (xr >= 320 + m && xmax >= 0 && xmax + ALU_TILE_W < 320 + m &&
-        alundra_edge_sample(316, &rgb)) {
-        uint32_t pkt = g_alundra_edge + 192u;
-        alundra_outside_build(pkt, xmax + ALU_TILE_W, 320 + m, rgb);
-        psx_mod_write_word(pkt, (5u << 24) | next);
+        alundra_edge_sample(316, rgb)) {
+        uint32_t pkt = g_alundra_edge + 288u;
+        if (defer) { alundra_outside_build(pkt, xmax + ALU_TILE_W, 320 + m, rgb, 0u); alundra_def_add(pkt); }
+        else { alundra_outside_build(pkt, xmax + ALU_TILE_W, 320 + m, rgb, next);
         next = pkt & 0x00FFFFFFu;
-        first = pkt;
+        first = pkt; }
     }
     if (first)
         psx_mod_write_word(slot, (head & 0xFF000000u) | (first & 0x00FFFFFFu));
@@ -428,6 +506,7 @@ static void alundra_cloud_strip(struct CPUState* cpu, uint32_t address) {
  * fills the 16:9 view. Texpage = same table the game uses for its E1 packet (0x8018CF66 + 2*idx). */
 #define ALU_MASK_STRETCH_NUM 4
 #define ALU_MASK_STRETCH_DEN 3
+#define ALU_MASK_TRIM        0
 #define ALU_MASK_QUADS       480
 #define ALU_MASK_QUAD_SZ     48u
 #define R_T3 11
@@ -462,6 +541,12 @@ static void alundra_mask_stretch(struct CPUState* cpu, uint32_t address) {
     int32_t x = (int16_t)(xy & 0xFFFFu), y = (int16_t)(xy >> 16);
     uint32_t uvc = psx_mod_read_word(spr + 12u);
     uint32_t u = uvc & 0xFFu, v = (uvc >> 8) & 0xFFu, clut = uvc >> 16;
+    /* The mask texture is bright in its top/bottom rows (light band over the whole width). Keep
+     * the quads where they are but sample the texture rows just inside the band instead. */
+    if (ALU_MASK_TRIM > 0) {
+        if (v < (uint32_t)ALU_MASK_TRIM) v = ALU_MASK_TRIM;
+        if (v > 240u - ALU_MASK_TRIM - 4u) v = 240u - ALU_MASK_TRIM - 4u;
+    }
     uint32_t u1 = u + w; if (u1 > 255u) u1 = 255u;
     uint32_t v1 = v + 4u; if (v1 > 255u) v1 = 255u;
     uint32_t x0 = (uint32_t)alundra_mask_sx(x) & 0xFFFFu;
@@ -480,6 +565,42 @@ static void alundra_mask_stretch(struct CPUState* cpu, uint32_t address) {
     psx_mod_write_word(q + 32u, yb | x1);
     psx_mod_write_word(q + 36u, (v1 << 8) | u1);
     psx_mod_write_word(slot, (psx_mod_read_word(slot) & 0xFF000000u) | (q & 0x00FFFFFFu));
+    if (g_alu_mask_now++ == 0 && g_alu_def_head) {
+        uint32_t old_next = psx_mod_read_word(q) & 0x00FFFFFFu;
+        psx_mod_write_word(g_alu_def_tail, (8u << 24) | old_next);
+        psx_mod_write_word(q, (9u << 24) | (g_alu_def_head & 0x00FFFFFFu));
+        g_alu_def_head = 0;
+    }
+}
+
+
+/* Gate shadow: under a gate the game switches the player's shadow slot from the normal part
+ * definition to a second one that is drawn at a fixed height (a black blob at the gate foot).
+ * Hook in the generic part-sprite routine (0x8002DC28..), just before the packet is linked into the
+ * OT (LW v1,0(t2)): t2 = packet tag, t6 = next part (already +14), a2 = OT slot pointer.
+ * The slot pointers that carry the normal player shadow are learned; the same slot with the other
+ * definition gets its four vertices collapsed (nothing is drawn). 0 disables. */
+#define ALU_HIDE_GATE_SHADOW 1
+#define ALU_SHADOW_T6_PLAYER 0x800E4D30u /* normal player shadow definition (+14 after advance) */
+#define ALU_SHADOW_T6_GATE   0x800E4D50u /* alternate definition used under gates */
+static uint32_t g_alundra_player_slot[2];
+static void alundra_shadow_part(struct CPUState* cpu, uint32_t address) {
+    (void)address;
+    uint32_t pkt = cpu->gpr[10] + 4u; /* t2 + 4 = command word */
+    if ((pkt & 0xFF000000u) != 0x80000000u) return;
+    if ((psx_mod_read_word(pkt) >> 24) != 0x2Fu || psx_mod_read_word(pkt + 8u) != 0x780C5898u) return;
+    uint32_t t6 = cpu->gpr[R_T6], slot = cpu->gpr[R_A2];
+    if (t6 == ALU_SHADOW_T6_PLAYER) {
+        if (slot != g_alundra_player_slot[0] && slot != g_alundra_player_slot[1]) {
+            g_alundra_player_slot[1] = g_alundra_player_slot[0];
+            g_alundra_player_slot[0] = slot;
+        }
+        return;
+    }
+    if (t6 == ALU_SHADOW_T6_GATE &&
+        (slot == g_alundra_player_slot[0] || slot == g_alundra_player_slot[1])) {
+        for (uint32_t o = 6u; o <= 30u; o += 8u) psx_mod_write_half(pkt + o, 0xFE00u);
+    }
 }
 
 static void alundra_widescreen_activate(void) {
@@ -488,7 +609,7 @@ static void alundra_widescreen_activate(void) {
         return;
     }
     g_alundra_xtab = psx_mod_alloc_guest_memory(ALU_TABLE_LEN * 2u, 4u);
-    g_alundra_edge = psx_mod_alloc_gpu_dma_memory(256u, 16u);
+    g_alundra_edge = psx_mod_alloc_gpu_dma_memory(448u, 16u);
     g_alundra_strip = psx_mod_alloc_gpu_dma_memory(64u, 16u);
     g_alundra_mask = psx_mod_alloc_gpu_dma_memory(ALU_MASK_QUADS * ALU_MASK_QUAD_SZ, 16u);
 #if ALU_CLOUD_WIDEN
@@ -527,6 +648,8 @@ PSX_MOD_CONSTRUCTOR(alundra_register_widescreen_plugin) {
                                               0x8FBF008Cu, alundra_cloud_strip);
     (void)psx_mod_register_instruction_plugin("alundra.widescreen", 0x8005D5E0u,
                                               0x03E00008u, alundra_mask_stretch);
+    (void)psx_mod_register_instruction_plugin("alundra.widescreen", 0x8002DDF4u,
+                                              0x8D430000u, alundra_shadow_part);
 #if ALU_CLOUD_WIDEN
     (void)psx_mod_register_instruction_plugin("alundra.widescreen", 0x8005C538u,
                                               0x01B87023u, alundra_cloud_row_start);
