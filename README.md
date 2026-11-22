@@ -23,16 +23,42 @@ Action-adventure by Matrix Software (PlayStation, 1997), recompiled to run nativ
 
 **Status: actively played.** Every widescreen-related bug found while playing has been fixed.
 
-- **16:9 widescreen:** the tile renderer is widened (21 tile columns), full 2D mode.
-- **Soft map edge:** beyond the edge of a map the screen fades smoothly to black instead of showing garbage or stripes.
-- **Clouds / shadow overlay** widened to the full 16:9 width.
-- **Save/load room fog** (the mist in the memory/load room) covers the whole width without flicker.
-- **HUD in the screen corners** (feature `hud_corners`): item slots bottom left, hearts top left, gilder bottom right; the 10-HP stone and the menu slide are handled.
-- **Ring / light mask** stretched to 16:9.
-- **Fast savegame loading** (memory card scan no longer slows to a crawl).
-- **60 fps** instead of PAL 50 Hz.
+### 16:9 widescreen (feature `widescreen`)
 
-Not yet tested: sprite/object pop-in at the edges, menus and dialogs with the new HUD, FMV, audio.
+- **Wide tile renderer:** the game is a pure 2D tile game, so it runs in `full_2d` mode. The main-program tile loop is widened to 21 columns of 24x16 sprites through instruction hooks.
+- **Map edge:** maps are 52 columns wide; the column count is clamped at the map edge, so no garbage or streaks appear beyond it.
+- **Soft map edge:** a Gouraud subtractive quad (28 px) fades the world smoothly to black at each map side. It is skipped when no bright tiles lie in its zone (small rooms, dark edge tiles).
+- **Outside-of-map fill:** where the camera shows more than the map, the area is filled in the colour of the edge column (vertical gradient, median-sampled from VRAM). Under the ring/light mask a fixed per-room colour is used; rooms are recognised by a hash of the map rows.
+- **Clouds / shadow overlay** widened to the full 16:9 width (28 KB GPU DMA arena).
+- **Save/load room fog** covers the whole width without flicker (shifted copies of the 6 fog strips).
+- **Ring / light mask** (120 strips) replaced by quads stretched by 4/3.
+- **Gate shadow:** the stray black shadow circle under the gate pillar is collapsed.
+
+### HUD in the screen corners (feature `hud_corners`)
+
+Item slots bottom left, hearts top left, gilder bottom right. Handles the 10-HP stone (shown above the small HP dots), the start-menu slide (HUD is hidden while it moves) and the different packet layout before the first menu is opened.
+
+### Speed and loading
+
+- **60 fps** instead of PAL 50 Hz.
+- **Fast savegame loading:** turbo stays on while the memory card is scanned sector by sector.
+
+### Not yet tested
+
+Sprite/object pop-in at the edges, menus and dialogs with the new HUD, FMV, audio, edge quad on outdoor maps with uniform grass. Interior rooms may have a different map width than 52. Not every room has been checked for the outside-of-map colour.
+
+Each feature can be switched off in `mods/state.toml` (`[[feature]] id = "hud_corners"`, `enabled = false`).
+
+## Screenshots
+
+16:9 widescreen with the HUD in the screen corners.
+
+| | |
+|---|---|
+| ![Screenshot 1](screenshots/1.png) | ![Screenshot 2](screenshots/2.png) |
+| ![Screenshot 3](screenshots/3.png) | ![Screenshot 4](screenshots/4.png) |
+| ![Screenshot 5](screenshots/5.png) | ![Screenshot 6](screenshots/6.png) |
+| ![Screenshot 7](screenshots/7.png) | ![Screenshot 8](screenshots/8.png) |
 
 ### Common to all recomps in this family
 
