@@ -50,8 +50,18 @@ static uint32_t g_alundra_xtab;
 static uint32_t g_alundra_cloud;
 
 /* SUBU t6,t5,t8 (right after ADDU t1,zero,zero) at row start: begin left of column 0 and wrap the map column. */
+/* Dark-room fill: some layers (mine darkness) only have cells for the 4:3 area (full-height
+ * edge columns at x=0 and x=304, nothing beyond), so 16:9 shows bright side strips. Count the
+ * emitted cells per frame (s2 = emitted counter) and let alundra_after_tiles add a flat
+ * subtractive black quad on the empty side(s). */
+#define ALU_DARK_FILL_COLOR 0xE6u   /* ~90 % black (255 * 0.9) */
+static uint32_t g_alundra_fill;     /* 2 x 32 B */
+static uint32_t g_cl_s2;
+static uint32_t g_cl_now[4], g_cl_snap[4]; /* colL (x=0), outL (x<0), colR (x=304), outR (x>=320) */
+
 static void alundra_cloud_row_start(struct CPUState* cpu, uint32_t address) {
     (void)address;
+    g_cl_s2 = cpu->gpr[18];
     int32_t a3 = (int32_t)cpu->gpr[R_A3] - ALU_CLOUD_LEFT_COLS;
     while (a3 < 0) a3 += ALU_CLOUD_MAPW;
     cpu->gpr[R_A3] = (uint32_t)a3;
@@ -62,6 +72,15 @@ static void alundra_cloud_row_start(struct CPUState* cpu, uint32_t address) {
 static void alundra_cloud_loop(struct CPUState* cpu, uint32_t address) {
     (void)address;
     int32_t t1 = (int32_t)cpu->gpr[R_T1];
+    uint32_t s2 = cpu->gpr[18];
+    if (s2 != g_cl_s2) {            /* this cell emitted a packet; its x = t1 - 16 */
+        int32_t x = t1 - 16;
+        if (x == 0) g_cl_now[0]++;
+        else if (x < 0) g_cl_now[1]++;
+        else if (x == 304) g_cl_now[2]++;
+        else if (x >= 320) g_cl_now[3]++;
+    }
+    g_cl_s2 = s2;
     cpu->gpr[R_V0] = (t1 < (ALU_CLOUD_COLS - ALU_CLOUD_LEFT_COLS) * 16) ? 1u : 0u;
 }
 
@@ -425,6 +444,7 @@ static void alundra_def_add(uint32_t pkt) {
 static void alundra_after_tiles(struct CPUState* cpu, uint32_t address) {
     (void)address;
     if (!g_alundra_edge) return;
+    for (int i = 0; i < 4; i++) { g_cl_snap[i] = g_cl_now[i]; g_cl_now[i] = 0; }
     g_alu_mask_prev = g_alu_mask_now; g_alu_mask_now = 0; g_alu_def_head = 0;
     int defer = g_alu_mask_prev != 0;
     uint32_t rsig = alundra_room_sig();
@@ -489,6 +509,25 @@ static void alundra_after_tiles(struct CPUState* cpu, uint32_t address) {
         alundra_outside_build(pkt, xmax + ALU_TILE_W, 320 + m, (defer || fixed) ? clr : rgb, next);
         next = pkt & 0x00FFFFFFu;
         first = pkt;
+    }
+    if (g_alundra_fill) {
+        int fill_l = g_cl_snap[0] >= 12 && g_cl_snap[1] == 0;
+        int fill_r = g_cl_snap[2] >= 12 && g_cl_snap[3] == 0;
+        for (int side = 0; side < 2; side++) {
+            if (!(side ? fill_r : fill_l)) continue;
+            int32_t x0 = side ? 320 : -m - 8, x1 = side ? 320 + m + 8 : 0;
+            uint32_t pkt = g_alundra_fill + (uint32_t)side * 32u;
+            uint32_t c = ALU_DARK_FILL_COLOR * 0x010101u;
+            psx_mod_write_word(pkt, (6u << 24) | (next & 0x00FFFFFFu));
+            psx_mod_write_word(pkt + 4u, 0xE1000040u);
+            psx_mod_write_word(pkt + 8u, c | 0x2A000000u);
+            psx_mod_write_word(pkt + 12u, (uint32_t)x0 & 0xFFFFu);
+            psx_mod_write_word(pkt + 16u, (uint32_t)x1 & 0xFFFFu);
+            psx_mod_write_word(pkt + 20u, (240u << 16) | ((uint32_t)x0 & 0xFFFFu));
+            psx_mod_write_word(pkt + 24u, (240u << 16) | ((uint32_t)x1 & 0xFFFFu));
+            next = pkt & 0x00FFFFFFu;
+            first = pkt;
+        }
     }
     if (first)
         psx_mod_write_word(slot, (head & 0xFF000000u) | (first & 0x00FFFFFFu));
@@ -655,6 +694,7 @@ static void alundra_widescreen_activate(void) {
     g_alundra_xtab = psx_mod_alloc_guest_memory(ALU_TABLE_LEN * 2u, 4u);
     g_alundra_edge = psx_mod_alloc_gpu_dma_memory(448u, 16u);
     g_alundra_strip = psx_mod_alloc_gpu_dma_memory(64u, 16u);
+    g_alundra_fill = psx_mod_alloc_gpu_dma_memory(64u, 16u);
     g_alundra_mask = psx_mod_alloc_gpu_dma_memory(ALU_MASK_QUADS * ALU_MASK_QUAD_SZ, 16u);
 #if ALU_CLOUD_WIDEN
     g_alundra_cloud = psx_mod_alloc_gpu_dma_memory(

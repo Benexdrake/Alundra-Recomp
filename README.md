@@ -30,6 +30,7 @@ Action-adventure by Matrix Software (PlayStation, 1997), recompiled to run nativ
 - **Soft map edge:** a Gouraud subtractive quad (28 px) fades the world smoothly to black at each map side. It is skipped when no bright tiles lie in its zone (small rooms, dark edge tiles).
 - **Outside-of-map fill:** where the camera shows more than the map, the area is filled in the colour of the edge column (vertical gradient, median-sampled from VRAM). Under the ring/light mask a fixed per-room colour is used; rooms are recognised by a hash of the map rows.
 - **Clouds / shadow overlay** widened to the full 16:9 width (28 KB GPU DMA arena).
+- **Dark rooms (mine):** the darkness layer only exists for the 4:3 area, so a flat 90 % black (subtractive) quad is added on each side where the layer has full-height edge columns and nothing beyond them.
 - **Save/load room fog** covers the whole width without flicker (shifted copies of the 6 fog strips).
 - **Ring / light mask** (120 strips) replaced by quads stretched by 4/3.
 - **Gate shadow:** the stray black shadow circle under the gate pillar is collapsed.
@@ -59,6 +60,7 @@ Each feature can be switched off in `mods/state.toml` (`[[feature]] id = "hud_co
 | ![Screenshot 3](screenshots/3.png) | ![Screenshot 4](screenshots/4.png) |
 | ![Screenshot 5](screenshots/5.png) | ![Screenshot 6](screenshots/6.png) |
 | ![Screenshot 7](screenshots/7.png) | ![Screenshot 8](screenshots/8.png) |
+| ![Screenshot 9](screenshots/9.png) | |
 
 ### Common to all recomps in this family
 
