@@ -286,6 +286,13 @@ static int alundra_zone_dark(int32_t sx) {
     return sum < 7 * n;
 }
 
+/* any gradient stop with a channel >= 0x50 -> bright border */
+static int alundra_col_bright(const uint32_t* col) {
+    for (int k = 0; k < ALU_FILL_STOPS; k++)
+        if ((col[k] & 0xFFu) >= 0x50u || ((col[k] >> 8) & 0xFFu) >= 0x50u || ((col[k] >> 16) & 0xFFu) >= 0x50u) return 1;
+    return 0;
+}
+
 static uint32_t g_alu_col_l[ALU_FILL_STOPS], g_alu_col_r[ALU_FILL_STOPS];
 /* 3:1 blend of the stored fill colours with a new sample (no frame-to-frame jumps) */
 static void alundra_blend(uint32_t* old, const uint32_t* nw, int have) {
@@ -456,6 +463,21 @@ static void alundra_after_tiles(struct CPUState* cpu, uint32_t address) {
     int32_t cam = (int32_t)psx_mod_read_word(ALU_CAM_X);
     int32_t m = psx_mod_widescreen_view_x_margin();
     int32_t xl = -cam, xr = ALU_MAP_PX - cam;
+    /* Bright border (tree/hedge wall at the map edge): same treatment as the village, outside =
+     * black plus soft gradient quad. Measured just inside the quad zone (quad adds 0 there, no
+     * feedback). Dark borders (mine, (8,8,0) walls) keep the old behaviour. */
+    int fixed_l = fixed, fixed_r = fixed;
+    if (!fixed) {
+        uint32_t bc[ALU_FILL_STOPS];
+        if (xl > -m && xl < 316) {
+            int32_t sx = xl + ALU_EDGE_W + 2; if (sx < 2) sx = 2; if (sx > 316) sx = 316;
+            if (alundra_edge_sample(sx, bc)) fixed_l = alundra_col_bright(bc);
+        }
+        if (xr > 4 && xr < 320 + m) {
+            int32_t sx = xr - ALU_EDGE_W - 3; if (sx < 3) sx = 3; if (sx > 316) sx = 316;
+            if (alundra_edge_sample(sx, bc)) fixed_r = alundra_col_bright(bc);
+        }
+    }
     uint32_t slot = ot + ALU_EDGE_SLOT * 4u;
     uint32_t head = psx_mod_read_word(slot);
     uint32_t next = head & 0x00FFFFFFu;
@@ -463,7 +485,7 @@ static void alundra_after_tiles(struct CPUState* cpu, uint32_t address) {
     /* build right first so that the left ends up first in the chain */
     int32_t xrs = xr, xls = xl;
     int drew_r = 0, drew_l = 0;
-    if (xrs - ALU_EDGE_W < 320 + m && xrs > -m && (fixed || (alundra_tiles_overlap(ot, xrs - ALU_EDGE_W, xrs) &&
+    if (xrs - ALU_EDGE_W < 320 + m && xrs > -m && (fixed_r || (alundra_tiles_overlap(ot, xrs - ALU_EDGE_W, xrs) &&
         !alundra_zone_dark(xrs - ALU_EDGE_W - 2)))) {
         drew_r = 1;
         uint32_t pkt = g_alundra_edge + 64u;
@@ -472,11 +494,11 @@ static void alundra_after_tiles(struct CPUState* cpu, uint32_t address) {
         next = pkt & 0x00FFFFFFu;
         first = pkt;
     }
-    if (!(fixed && ALU_EDGE_W_VILLAGE_L == 0) && xls + ALU_EDGE_W > -m && xls < 320 + m && (fixed || (alundra_tiles_overlap(ot, xls, xls + ALU_EDGE_W) &&
+    if (!(fixed_l && ALU_EDGE_W_VILLAGE_L == 0) && xls + ALU_EDGE_W > -m && xls < 320 + m && (fixed_l || (alundra_tiles_overlap(ot, xls, xls + ALU_EDGE_W) &&
         !alundra_zone_dark(xls + ALU_EDGE_W + 2)))) {
         drew_l = 1;
         uint32_t pkt = g_alundra_edge;
-        alundra_edge_build(pkt, xls, xls + (fixed ? ALU_EDGE_W_VILLAGE_L : ALU_EDGE_W));
+        alundra_edge_build(pkt, xls, xls + (fixed_l ? ALU_EDGE_W_VILLAGE_L : ALU_EDGE_W));
         psx_mod_write_word(pkt, ((ALU_EDGE_WORDS - 1u) << 24) | next);
         next = pkt & 0x00FFFFFFu;
         first = pkt;
@@ -485,9 +507,9 @@ static void alundra_after_tiles(struct CPUState* cpu, uint32_t address) {
     if (xr > 4 && xr < 320 + m) {
         if (alundra_edge_sample(xr <= 316 ? xr - 3 : 316, rgb)) { alundra_blend(g_alu_col_r, rgb, g_alu_rgb_r_ok); g_alu_rgb_r_ok = 1; }
     }
-    if (!drew_r && xr > 4 && xr < 320 + m && (g_alu_rgb_r_ok || fixed)) {
+    if (!drew_r && xr > 4 && xr < 320 + m && (g_alu_rgb_r_ok || fixed_r)) {
         uint32_t pkt = g_alundra_edge + 288u;
-        alundra_outside_build(pkt, xr, 320 + m, (defer || fixed) ? clr : g_alu_col_r, next);
+        alundra_outside_build(pkt, xr, 320 + m, fixed_r ? g_alu_black : (defer ? clr : g_alu_col_r), next);
         next = pkt & 0x00FFFFFFu;
         first = pkt;
     }
@@ -496,9 +518,9 @@ static void alundra_after_tiles(struct CPUState* cpu, uint32_t address) {
     if (xl > -m && xl < 316) {
         if (alundra_edge_sample(xl >= -1 ? xl + 2 : 2, rgb)) { alundra_blend(g_alu_col_l, rgb, g_alu_rgb_l_ok); g_alu_rgb_l_ok = 1; }
     }
-    if (!drew_l && xl > -m && xl < 316 && (g_alu_rgb_l_ok || fixed)) {
+    if (!drew_l && xl > -m && xl < 316 && (g_alu_rgb_l_ok || fixed_l)) {
         uint32_t pkt = g_alundra_edge + 128u;
-        alundra_outside_build(pkt, -m, xl, (defer || fixed) ? clr : g_alu_col_l, next);
+        alundra_outside_build(pkt, -m, xl, fixed_l ? g_alu_black : (defer ? clr : g_alu_col_l), next);
         next = pkt & 0x00FFFFFFu;
         first = pkt;
     }
@@ -506,7 +528,7 @@ static void alundra_after_tiles(struct CPUState* cpu, uint32_t address) {
     if (xr >= 320 + m && xmax >= 0 && xmax + ALU_TILE_W < 320 + m &&
         alundra_edge_sample(316, rgb)) {
         uint32_t pkt = g_alundra_edge + 288u;
-        alundra_outside_build(pkt, xmax + ALU_TILE_W, 320 + m, (defer || fixed) ? clr : rgb, next);
+        alundra_outside_build(pkt, xmax + ALU_TILE_W, 320 + m, (defer || fixed || fixed_r) ? (fixed_r ? g_alu_black : clr) : rgb, next);
         next = pkt & 0x00FFFFFFu;
         first = pkt;
     }
