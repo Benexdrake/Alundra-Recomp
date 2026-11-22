@@ -57,3 +57,15 @@ default_enabled = true
 [[plugin]]
 feature = "map_edge_fade"
 id = "alundra.edgefade"
+
+[[feature]]
+id = "cheat_infinite_hp"
+name = "Cheat: Unendlich HP"
+description = "Testhilfe: haelt die HP jederzeit auf dem Maximum."
+group = "Cheats"
+channel = "experimental"
+default_enabled = false
+
+[[plugin]]
+feature = "cheat_infinite_hp"
+id = "alundra.cheat_hp"

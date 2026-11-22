@@ -29,13 +29,9 @@ static const AluEdgeRoom g_alu_edge_rooms[] = {
     { 0x4F8B40B1u, 0xDBBD8DE9u, 12, 12, 52, 0xFFu }, /* Aussenmap Wald nahe Treppe/Mauer (Kamera X=0 gemessen) */
 };
 
-static uint32_t g_alu_edge_arena; /* 2 Pakete a 64 B */
+static uint32_t g_alu_edge_arena; /* 4 Pakete a 64 B */
 
-static void alundra_edge_build(uint32_t pkt, int32_t x_dark, int32_t x_clear, uint32_t dark) {
-    int32_t xl = x_dark < x_clear ? x_dark : x_clear;
-    int32_t xr = x_dark < x_clear ? x_clear : x_dark;
-    uint32_t cl = (x_dark < x_clear ? dark : 0u) * 0x010101u;
-    uint32_t cr = (x_dark < x_clear ? 0u : dark) * 0x010101u;
+static void alundra_quad_build(uint32_t pkt, int32_t xl, int32_t xr, uint32_t cl, uint32_t cr) {
     uint32_t yt = 0u, yb = 240u;
     psx_mod_write_word(pkt + 4u, 0xE1000040u);
     psx_mod_write_word(pkt + 8u, cl | 0x3A000000u);
@@ -48,6 +44,22 @@ static void alundra_edge_build(uint32_t pkt, int32_t x_dark, int32_t x_clear, ui
     psx_mod_write_word(pkt + 36u, (yb << 16) | ((uint32_t)xr & 0xFFFFu));
 }
 
+static void alundra_edge_build(uint32_t pkt, int32_t x_dark, int32_t x_clear, uint32_t dark) {
+    int32_t xl = x_dark < x_clear ? x_dark : x_clear;
+    int32_t xr = x_dark < x_clear ? x_clear : x_dark;
+    alundra_quad_build(pkt, xl, xr, (x_dark < x_clear ? dark : 0u) * 0x010101u,
+                       (x_dark < x_clear ? 0u : dark) * 0x010101u);
+}
+
+/* Mine-Raeume: die Schattenschicht des Spiels deckt nur das 4:3-Band (Bildschirm-X 0..320) ab.
+ * Ausserhalb (-m..0 und 320..320+m) wird subtraktiv bis Schwarz abgedunkelt, mit je 8 px Rampe
+ * ins Band. 4 Pakete a 64 B: 0 = links voll, 64 = links Rampe, 128 = rechts voll, 192 = rechts Rampe. */
+#define ALU_BAND_RAMP 8
+/* Erkennung ohne Raumliste: alundra_cloud_loop zaehlt pro Frame die Schattenzellen am Rand
+ * (colL x=0, outL x<0, colR x=304, outR x>=320). Volle Randspalte (>= 12 von 16 Zeilen) und keine
+ * Zelle ausserhalb = die Schattenschicht endet am 4:3-Rand -> aussen abdunkeln. */
+extern void alundra_cloud_edge_counts_take(uint32_t out[4]);
+
 static void alundra_edgefade_hook(struct CPUState* cpu, uint32_t address) {
     (void)address;
     if (!g_alu_edge_arena) return;
@@ -55,6 +67,38 @@ static void alundra_edgefade_hook(struct CPUState* cpu, uint32_t address) {
     if (m <= 0) return;
     uint32_t sig = alundra_room_sig();
     if (sig == 0) return;
+    {   /* Schattenschicht-Rand, raumunabhaengig (vor der Raumtabelle, die ist nur fuer Kartenraender) */
+        uint32_t c[4];
+        alundra_cloud_edge_counts_take(c);
+        int fill_l = c[0] >= 12 && c[1] == 0, fill_r = c[2] >= 12 && c[3] == 0;
+        if (fill_l || fill_r) {
+            uint32_t ot = psx_mod_read_word(cpu->gpr[29] + 0x58u);
+            if ((ot & 0xFF000000u) == 0x80000000u) {
+                uint32_t slot = ot + ALU_EDGE_SLOT * 4u;
+                uint32_t head = psx_mod_read_word(slot);
+                uint32_t next = head & 0x00FFFFFFu;
+                const uint32_t F = 0x808080u; /* 50 % */
+                if (fill_r) {
+                    alundra_quad_build(g_alu_edge_arena + 192u, 320 - ALU_BAND_RAMP, 320, 0u, F);
+                    alundra_quad_build(g_alu_edge_arena + 128u, 320, 320 + m, F, F);
+                    for (uint32_t o = 192u; o >= 128u; o -= 64u) {
+                        psx_mod_write_word(g_alu_edge_arena + o, ((ALU_EDGE_WORDS - 1u) << 24) | next);
+                        next = (g_alu_edge_arena + o) & 0x00FFFFFFu;
+                    }
+                }
+                if (fill_l) {
+                    alundra_quad_build(g_alu_edge_arena + 64u, 0, ALU_BAND_RAMP, F, 0u);
+                    alundra_quad_build(g_alu_edge_arena, -m, 0, F, F);
+                    for (uint32_t o = 64u;; o -= 64u) {
+                        psx_mod_write_word(g_alu_edge_arena + o, ((ALU_EDGE_WORDS - 1u) << 24) | next);
+                        next = (g_alu_edge_arena + o) & 0x00FFFFFFu;
+                        if (o == 0u) break;
+                    }
+                }
+                psx_mod_write_word(slot, (head & 0xFF000000u) | next);
+            }
+        }
+    }
     const AluEdgeRoom* room = 0;
     uint32_t bsig = alundra_room_border_sig();
     for (unsigned i = 0; i < sizeof g_alu_edge_rooms / sizeof g_alu_edge_rooms[0]; i++) {
@@ -91,7 +135,7 @@ static void alundra_edgefade_hook(struct CPUState* cpu, uint32_t address) {
 }
 
 static void alundra_edgefade_activate(void) {
-    g_alu_edge_arena = psx_mod_alloc_gpu_dma_memory(128u, 16u);
+    g_alu_edge_arena = psx_mod_alloc_gpu_dma_memory(256u, 16u);
 }
 
 PSX_MOD_CONSTRUCTOR(alundra_register_edgefade_plugin) {
