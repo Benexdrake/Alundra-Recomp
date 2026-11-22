@@ -58,6 +58,8 @@ psxrecomp_add_game_runtime(psx-runtime
 # Title-owned trusted plugin: selects the 16:9 display aspect.
 target_sources(psx-runtime PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/mods/alundra_widescreen.c")
 target_sources(psx-runtime PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/mods/alundra_hud.c")
+target_sources(psx-runtime PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/mods/alundra_bgcolor.c")
+target_sources(psx-runtime PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/mods/alundra_edgefade.c")
 target_include_directories(psx-runtime PRIVATE "${PSXRECOMP_ROOT}/runtime/include")
 
 # Stage runtime configs next to the exe for direct build/ launches. Only copy

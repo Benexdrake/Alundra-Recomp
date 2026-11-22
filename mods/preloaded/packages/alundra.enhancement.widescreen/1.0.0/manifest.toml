@@ -3,7 +3,7 @@ id = "alundra.enhancement.widescreen"
 version = "1.0.0"
 name = "Widescreen"
 author = "Alundra recomp"
-description = "Native-wide 16:9 presentation. Experimental: 2D backdrops and some culls are not yet widened."
+description = "Native-wide 16:9 presentation (16:9 only). Experimental."
 resolver = "declarative"
 save_compatibility = "shared"
 
@@ -13,7 +13,7 @@ game_id = "SLES-01256"
 [[feature]]
 id = "widescreen"
 name = "Widescreen 16:9"
-description = "Renders the game in 16:9 instead of 4:3. Experimental."
+description = "Renders the game in 16:9 (instead of 4:3). Experimental."
 group = "Visual"
 channel = "experimental"
 default_enabled = true
@@ -33,3 +33,27 @@ default_enabled = true
 [[plugin]]
 feature = "hud_corners"
 id = "alundra.hud"
+
+[[feature]]
+id = "background_color"
+name = "Hintergrundfarbe"
+description = "Fills the area outside the map/overlay with the room's background colour in 16:9."
+group = "Visual"
+channel = "experimental"
+default_enabled = true
+
+[[plugin]]
+feature = "background_color"
+id = "alundra.bgcolor"
+
+[[feature]]
+id = "map_edge_fade"
+name = "Weicher Kartenrand"
+description = "Soft fade at the left and right map edge in 16:9."
+group = "Visual"
+channel = "experimental"
+default_enabled = true
+
+[[plugin]]
+feature = "map_edge_fade"
+id = "alundra.edgefade"
