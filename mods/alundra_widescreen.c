@@ -370,6 +370,10 @@ static int32_t alundra_fix_stale_col(uint32_t ot) {
  * fill colour is sampled from VRAM where the mask was already applied: drawn under the mask it
  * gets the mask twice (light strip in the mine). While the mask is active, the fill packets are
  * therefore linked right behind the first mask quad (after the mask, before the HUD). */
+/* Mask active (mine): fill goes UNDER the mask in the game's own clear colour (0,8,0), exactly what
+ * the original shows outside the map. The sampled VRAM colour already contains the mask (double
+ * mask, camera-dependent colour) and a fill over the mask cuts off the fog. */
+static const uint32_t g_alu_clear[ALU_FILL_STOPS] = {0x000800u, 0x000800u, 0x000800u, 0x000800u, 0x000800u};
 static uint32_t g_alu_def_head, g_alu_def_tail;
 static uint32_t g_alu_mask_prev, g_alu_mask_now;
 static void alundra_def_add(uint32_t pkt) {
@@ -420,10 +424,9 @@ static void alundra_after_tiles(struct CPUState* cpu, uint32_t address) {
     }
     if (!drew_r && xr > 4 && xr < 320 + m && g_alu_rgb_r_ok) {
         uint32_t pkt = g_alundra_edge + 288u;
-        if (defer) { alundra_outside_build(pkt, xr, 320 + m, g_alu_col_r, 0u); alundra_def_add(pkt); }
-        else { alundra_outside_build(pkt, xr, 320 + m, g_alu_col_r, next);
+        alundra_outside_build(pkt, xr, 320 + m, defer ? g_alu_clear : g_alu_col_r, next);
         next = pkt & 0x00FFFFFFu;
-        first = pkt; }
+        first = pkt;
     }
     /* Edge already left of the 4:3 view (camera X > 0): use the outermost visible column (x=2)
      * so the fill colour exists even if this edge was never on screen since the start. */
@@ -432,19 +435,17 @@ static void alundra_after_tiles(struct CPUState* cpu, uint32_t address) {
     }
     if (!drew_l && xl > -m && xl < 316 && g_alu_rgb_l_ok) {
         uint32_t pkt = g_alundra_edge + 128u;
-        if (defer) { alundra_outside_build(pkt, -m, xl, g_alu_col_l, 0u); alundra_def_add(pkt); }
-        else { alundra_outside_build(pkt, -m, xl, g_alu_col_l, next);
+        alundra_outside_build(pkt, -m, xl, defer ? g_alu_clear : g_alu_col_l, next);
         next = pkt & 0x00FFFFFFu;
-        first = pkt; }
+        first = pkt;
     }
     /* tiles end inside the 16:9 view (small scenes draw only 15 columns): fill the gap */
     if (xr >= 320 + m && xmax >= 0 && xmax + ALU_TILE_W < 320 + m &&
         alundra_edge_sample(316, rgb)) {
         uint32_t pkt = g_alundra_edge + 288u;
-        if (defer) { alundra_outside_build(pkt, xmax + ALU_TILE_W, 320 + m, rgb, 0u); alundra_def_add(pkt); }
-        else { alundra_outside_build(pkt, xmax + ALU_TILE_W, 320 + m, rgb, next);
+        alundra_outside_build(pkt, xmax + ALU_TILE_W, 320 + m, defer ? g_alu_clear : rgb, next);
         next = pkt & 0x00FFFFFFu;
-        first = pkt; }
+        first = pkt;
     }
     if (first)
         psx_mod_write_word(slot, (head & 0xFF000000u) | (first & 0x00FFFFFFu));
