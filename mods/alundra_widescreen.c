@@ -154,7 +154,7 @@ static void alundra_edge_tile_b(struct CPUState* cpu, uint32_t address) {
  * the last (empty) ordering-table slot so it lies over world tiles/sprites but under the
  * cloud overlay and HUD. Hooked right after the tile pass; sp+0x58 = current OT base. */
 #define ALU_MAP_PX       (ALU_MAP_COLS * ALU_TILE_W)
-#define ALU_EDGE_W       28
+#define ALU_EDGE_W       12
 #define ALU_EDGE_W_VILLAGE_L 12        /* village left: fade only the outer part of the grey cliff column (confirmed) */
 #define ALU_EDGE_SLOT    959u
 #define ALU_EDGE_WORDS   10u          /* tag + E1 + 4 * (colour, vertex) */
@@ -388,6 +388,17 @@ static uint32_t alundra_room_sig(void) {
     for (uint32_t i = 0; i < 416u * 60u; i += 4u) h = (h ^ psx_mod_read_word(p + i)) * 0x01000193u;
     return h;
 }
+/* Hash over the first and last map column only (8 B entries, 416 B rows): more stable than the full-map hash,
+ * which changes with the map state/save (the village had two different full hashes). */
+static uint32_t alundra_room_border_sig(void) {
+    uint32_t p = psx_mod_read_word(ALU_MAP_ROWS_PTR);
+    if ((p & 0xFF000000u) != 0x80000000u) return 0;
+    uint32_t h = 0x811C9DC5u;
+    for (uint32_t r = 0; r < 60u; r++)
+        for (uint32_t o = 0; o < 416u; o += 408u)
+            for (uint32_t k = 0; k < 8u; k += 4u) h = (h ^ psx_mod_read_word(p + r * 416u + o + k)) * 0x01000193u;
+    return h;
+}
 static const uint32_t g_alu_room_mine1[ALU_FILL_STOPS] = {0x000808u, 0x000808u, 0x000808u, 0x000808u, 0x000808u}; /* (R8,G8,B0) = border tile colour, measured: mask adds the same on both sides */
 static const uint32_t* alundra_room_clear(void) {
     switch (alundra_room_sig()) {
@@ -400,6 +411,8 @@ static const uint32_t* alundra_room_clear(void) {
 /* Fixed-colour rooms (village): outside = black, soft gradient quad forced on both map sides
  * (the tile heuristics would drop it on uniform hedge columns). */
 #define ALU_ROOM_VILLAGE 0x0B440C2Du
+#define ALU_ROOM_VILLAGE_BORDER 0x1D39BE10u
+#define ALU_ROOM_VILLAGE2 0xB4655671u /* same village, other save/map state (2026-11-22) */
 static const uint32_t g_alu_black[ALU_FILL_STOPS] = {0u, 0u, 0u, 0u, 0u};
 static uint32_t g_alu_def_head, g_alu_def_tail;
 static uint32_t g_alu_mask_prev, g_alu_mask_now;
@@ -414,7 +427,8 @@ static void alundra_after_tiles(struct CPUState* cpu, uint32_t address) {
     if (!g_alundra_edge) return;
     g_alu_mask_prev = g_alu_mask_now; g_alu_mask_now = 0; g_alu_def_head = 0;
     int defer = g_alu_mask_prev != 0;
-    int fixed = alundra_room_sig() == ALU_ROOM_VILLAGE;
+    uint32_t rsig = alundra_room_sig();
+    int fixed = rsig == ALU_ROOM_VILLAGE || rsig == ALU_ROOM_VILLAGE2 || alundra_room_border_sig() == ALU_ROOM_VILLAGE_BORDER;
     const uint32_t* clr = fixed ? g_alu_black : (defer ? alundra_room_clear() : g_alu_clear);
     uint32_t ot = psx_mod_read_word(cpu->gpr[29] + 0x58u);
     if ((ot & 0xFF000000u) != 0x80000000u) return;
