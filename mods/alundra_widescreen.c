@@ -99,13 +99,14 @@ static uint32_t g_alundra_tilebuf;
  * the next row's data and draws garbage, so clamp the column count to the map end. */
 #define ALU_MAP_COLS 52
 #define R_A0 4
+static int32_t g_alu_map_cols = ALU_MAP_COLS; /* per room, set in alundra_after_tiles (previous frame's value) */
 
 static uint32_t alundra_clamped_cols(struct CPUState* cpu, int32_t base) {
     int32_t cam = (int32_t)cpu->gpr[R_A0];
     int32_t col = cam < 0 ? 0 : cam / ALU_TILE_W;
     int32_t first = col - (col < ALU_LEFT_COLS ? col : ALU_LEFT_COLS);
     int32_t cols = base + ALU_EXTRA_COLS;
-    if (first + cols > ALU_MAP_COLS) cols = ALU_MAP_COLS - first;
+    if (first + cols > g_alu_map_cols) cols = g_alu_map_cols - first;
     return (uint32_t)(cols < 1 ? 1 : cols);
 }
 
@@ -494,6 +495,12 @@ static void alundra_after_tiles(struct CPUState* cpu, uint32_t address) {
      * as the left edge and column 22 as the right edge (empty black columns outside), fill = (8,8,0)
      * always (no ring mask in this room). */
     if (rsig == 0x56AA69AFu) { xl = 8 * ALU_TILE_W - cam; xr = 22 * ALU_TILE_W - cam; defer = 1; clr = g_alu_room_mine1; }
+    /* Room 0x1B8E3013 (2026-11-22): map columns 0..1 are dark margin, the room starts at column 2.
+     * Right edge assumed symmetric (column 50), not yet verified. Fill colour is sampled (not forced). */
+    /* Skeleton-wall room 0x793D39CF: room = columns 2..12, outside fill forced to the game clear colour
+     * (the sampled VRAM colour contains the cloud layer and flickers with it; clouds are drawn on top anyway). */
+    if (rsig == 0x793D39CFu) { xl = 2 * ALU_TILE_W - cam; xr = 12 * ALU_TILE_W - cam; defer = 1; clr = g_alu_clear; }
+    if (rsig == 0x1B8E3013u) { xl = 2 * ALU_TILE_W - cam; xr = (ALU_MAP_COLS - 2) * ALU_TILE_W - cam; }
     /* Bright border (tree/hedge wall at the map edge): same treatment as the village, outside =
      * black plus soft gradient quad. Measured just inside the quad zone (quad adds 0 there, no
      * feedback). Dark borders (mine, (8,8,0) walls) keep the old behaviour. */
@@ -509,6 +516,15 @@ static void alundra_after_tiles(struct CPUState* cpu, uint32_t address) {
             if (alundra_edge_sample(sx, bc)) fixed_r = alundra_col_bright(bc);
         }
     }
+    /* Small rooms with explicit edges: gradient quad and outside fill on both sides every frame
+     * (the tile heuristic flickered, and fill-only-without-quad left stale tile blocks visible). */
+    int room_fill = rsig == 0x793D39CFu || rsig == 0x1B8E3013u;
+    /* No quads and no fill in these rooms (user: looked like edge blocks). The game's own background
+     * (clear colour) shows outside; stale tile columns beyond the room are cut by g_alu_map_cols. */
+    g_alu_map_cols = ALU_MAP_COLS; /* column limit removed 2026-11-22: the map continues right of column 12 (player walks there) */
+    if (room_fill) {
+        xl = -100000; xr = 100000; xmax = -1;
+    }
     uint32_t slot = ot + ALU_EDGE_SLOT * 4u;
     uint32_t head = psx_mod_read_word(slot);
     uint32_t next = head & 0x00FFFFFFu;
@@ -516,7 +532,7 @@ static void alundra_after_tiles(struct CPUState* cpu, uint32_t address) {
     /* build right first so that the left ends up first in the chain */
     int32_t xrs = xr, xls = xl;
     int drew_r = 0, drew_l = 0;
-    if (xrs - ALU_EDGE_W < 320 + m && xrs > -m && (fixed_r || (alundra_tiles_overlap(ot, xrs - ALU_EDGE_W, xrs) &&
+    if (!room_fill && xrs - ALU_EDGE_W < 320 + m && xrs > -m && (fixed_r || (alundra_tiles_overlap(ot, xrs - ALU_EDGE_W, xrs) &&
         !alundra_zone_dark(xrs - ALU_EDGE_W - 2)))) {
         drew_r = 1;
         uint32_t pkt = g_alundra_edge + 64u;
@@ -525,7 +541,7 @@ static void alundra_after_tiles(struct CPUState* cpu, uint32_t address) {
         next = pkt & 0x00FFFFFFu;
         first = pkt;
     }
-    if (!(fixed_l && ALU_EDGE_W_VILLAGE_L == 0) && xls + ALU_EDGE_W > -m && xls < 320 + m && (fixed_l || (alundra_tiles_overlap(ot, xls, xls + ALU_EDGE_W) &&
+    if (!room_fill && !(fixed_l && ALU_EDGE_W_VILLAGE_L == 0) && xls + ALU_EDGE_W > -m && xls < 320 + m && (fixed_l || (alundra_tiles_overlap(ot, xls, xls + ALU_EDGE_W) &&
         !alundra_zone_dark(xls + ALU_EDGE_W + 2)))) {
         drew_l = 1;
         uint32_t pkt = g_alundra_edge;
@@ -539,7 +555,7 @@ static void alundra_after_tiles(struct CPUState* cpu, uint32_t address) {
     if (xr > 4 && xr < 320 + m) {
         if (alundra_edge_sample(xr <= 316 ? xr - 3 : 316, rgb)) { alundra_blend(g_alu_col_r, rgb, g_alu_rgb_r_ok); g_alu_rgb_r_ok = 1; }
     }
-    if ((!drew_r || rsig == 0x56AA69AFu) && xr > 4 && xr < 320 + m && (g_alu_rgb_r_ok || fixed_r || rsig == 0x56AA69AFu)) {
+    if ((!drew_r || rsig == 0x56AA69AFu || room_fill) && xr > 4 && xr < 320 + m && (g_alu_rgb_r_ok || fixed_r || room_fill || rsig == 0x56AA69AFu)) {
         uint32_t pkt = g_alundra_edge + 288u;
         alundra_outside_build(pkt, xr, 320 + m, fixed_r ? g_alu_black : (defer ? clr : g_alu_col_r), next);
         next = pkt & 0x00FFFFFFu;
@@ -550,7 +566,7 @@ static void alundra_after_tiles(struct CPUState* cpu, uint32_t address) {
     if (xl > -m && xl < 316) {
         if (alundra_edge_sample(xl >= -1 ? xl + 2 : 2, rgb)) { alundra_blend(g_alu_col_l, rgb, g_alu_rgb_l_ok); g_alu_rgb_l_ok = 1; }
     }
-    if ((!drew_l || rsig == 0x56AA69AFu) && xl > -m && xl < 316 && (g_alu_rgb_l_ok || fixed_l || rsig == 0x56AA69AFu)) {
+    if ((!drew_l || rsig == 0x56AA69AFu || room_fill) && xl > -m && xl < 316 && (g_alu_rgb_l_ok || fixed_l || room_fill || rsig == 0x56AA69AFu)) {
         uint32_t pkt = g_alundra_edge + 128u;
         alundra_outside_build(pkt, -m, xl, fixed_l ? g_alu_black : (defer ? clr : g_alu_col_l), next);
         next = pkt & 0x00FFFFFFu;
