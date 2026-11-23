@@ -18,6 +18,7 @@ static const AluBoxRoom g_alu_box_rooms[] = {
     { 0xB3BDE1C5u, 0xE93D8AA1u }, /* Kars-/Melzas-Szene (Zauberer, Siegel) */
 };
 
+extern uint32_t g_alu_clear_rgb; /* alundra_bgcolor.c */
 static uint32_t g_alu_box_arena; /* 2 Pakete a 32 B */
 
 static void alundra_pillarbox_hook(struct CPUState* cpu, uint32_t address) {
@@ -43,7 +44,7 @@ static void alundra_pillarbox_hook(struct CPUState* cpu, uint32_t address) {
         int32_t x0 = s ? 320 : -m, x1 = s ? 320 + m : 0;
         psx_mod_write_word(pkt, (6u << 24) | next);
         psx_mod_write_word(pkt + 4u, 0xE1000200u);
-        psx_mod_write_word(pkt + 8u, 0x28000000u);
+        psx_mod_write_word(pkt + 8u, 0x28000000u | (g_alu_clear_rgb & 0x00FFFFFFu)); /* wie Raumhintergrund */
         psx_mod_write_word(pkt + 12u, (uint32_t)x0 & 0xFFFFu);
         psx_mod_write_word(pkt + 16u, (uint32_t)x1 & 0xFFFFu);
         psx_mod_write_word(pkt + 20u, (240u << 16) | ((uint32_t)x0 & 0xFFFFu));

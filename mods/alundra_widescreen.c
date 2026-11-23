@@ -42,7 +42,7 @@ static uint32_t g_alundra_tilebuf;
  * per layer, packet buffer stride 5440. Widen to CLOUD_COLS columns starting
  * CLOUD_LEFT_COLS left of the camera, in a private GPU-DMA packet arena. */
 #define ALU_CLOUD_LEFT_COLS 4
-#define ALU_CLOUD_COLS      28
+#define ALU_CLOUD_COLS      30
 #define ALU_CLOUD_ROWS      16
 #define ALU_CLOUD_LAYERS    4
 #define ALU_CLOUD_PKT       16u
@@ -55,6 +55,8 @@ static uint32_t g_alundra_cloud;
  * am linken/rechten Rand (colL x=0, outL x<0, colR x=304, outR x>=320).
  * Der Quad-Bau fehlt bewusst; Abholen per alundra_cloud_edge_counts_take(). */
 static uint32_t g_cl_s2;
+static uint32_t g_cl_hide;
+extern int alundra_room_hide_clouds(void); /* alundra_bgcolor.c */
 static uint32_t g_cl_now[4];
 
 void alundra_cloud_edge_counts_take(uint32_t out[4]) {
@@ -65,6 +67,9 @@ void alundra_cloud_edge_counts_take(uint32_t out[4]) {
 static void alundra_cloud_row_start(struct CPUState* cpu, uint32_t address) {
     (void)address;
     g_cl_s2 = cpu->gpr[18];
+    if (cpu->gpr[13] == 0) {        /* erste Zeile des Frames: Raum pruefen */
+        g_cl_hide = alundra_room_hide_clouds();   /* Wolken ausserhalb 4:3 ausblenden */
+    }
     int32_t a3 = (int32_t)cpu->gpr[R_A3] - ALU_CLOUD_LEFT_COLS;
     while (a3 < 0) a3 += ALU_CLOUD_MAPW;
     cpu->gpr[R_A3] = (uint32_t)a3;
@@ -78,6 +83,8 @@ static void alundra_cloud_loop(struct CPUState* cpu, uint32_t address) {
     uint32_t s2 = cpu->gpr[18];
     if (s2 != g_cl_s2) {            /* this cell emitted a packet; its x = t1 - 16 */
         int32_t x = t1 - 16;
+        if (g_cl_hide)                          /* Raum-Switch (alundra_bgcolor.c): Wolken komplett aus */
+            psx_mod_write_half(cpu->gpr[R_T0] - 16u + 10u, 0x0300u);
         if (x == 0) g_cl_now[0]++;
         else if (x < 0) g_cl_now[1]++;
         else if (x == 304) g_cl_now[2]++;
