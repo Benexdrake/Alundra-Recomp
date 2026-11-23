@@ -4,7 +4,7 @@
  * umgefaerbt. Das Spiel baut das Paket jedes Frame neu, indem eine Schleife (0x80086CC4,
  * SW a1,0(a0)) die Vorlage aus der DRAWENV-Struktur (s0 = 0x8013FAE8 / 0x8013FA64) wortweise
  * in den OT-Ende-Block kopiert. Der Hook ersetzt das Farbwort direkt vor dem Schreiben.
- * Nur im 16:9-Betrieb aktiv (margin > 0); Default Schwarz, pro Raum per Switch ueberschreibbar.
+ * Nur im 16:9-Betrieb aktiv (margin > 0); Default (8,0,0), pro Raum per Switch ueberschreibbar.
  */
 #include "alundra_common.h"
 #include "cpu_state.h"
@@ -26,8 +26,8 @@ static uint32_t alundra_room_color(uint32_t sig) {
     case 0xD78EE04Cu:
     case 0x56AA69AFu:
         return 0x00000000u;
-    default:
-        return 0x00000000u;
+    default: /* Haeuser u. a.: Leere im Raum misst (R,G,B)=(8,0,0), Rand ausserhalb 4:3 war sonst (0,0,0) */
+        return 0x00000008u;
     }
 }
 

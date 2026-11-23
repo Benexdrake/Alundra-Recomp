@@ -31,9 +31,9 @@ static const AluEdgeRoom g_alu_edge_rooms[] = {
 
 static uint32_t g_alu_edge_arena; /* 4 Pakete a 64 B */
 
-static void alundra_quad_build(uint32_t pkt, int32_t xl, int32_t xr, uint32_t cl, uint32_t cr) {
+static void alundra_quad_build_e1(uint32_t pkt, uint32_t e1, int32_t xl, int32_t xr, uint32_t cl, uint32_t cr) {
     uint32_t yt = 0u, yb = 240u;
-    psx_mod_write_word(pkt + 4u, 0xE1000040u);
+    psx_mod_write_word(pkt + 4u, e1);
     psx_mod_write_word(pkt + 8u, cl | 0x3A000000u);
     psx_mod_write_word(pkt + 12u, (yt << 16) | ((uint32_t)xl & 0xFFFFu));
     psx_mod_write_word(pkt + 16u, cr);
@@ -42,6 +42,20 @@ static void alundra_quad_build(uint32_t pkt, int32_t xl, int32_t xr, uint32_t cl
     psx_mod_write_word(pkt + 28u, (yb << 16) | ((uint32_t)xl & 0xFFFFu));
     psx_mod_write_word(pkt + 32u, cr);
     psx_mod_write_word(pkt + 36u, (yb << 16) | ((uint32_t)xr & 0xFFFFu));
+}
+
+static void alundra_quad_build(uint32_t pkt, int32_t xl, int32_t xr, uint32_t cl, uint32_t cr) {
+    alundra_quad_build_e1(pkt, 0xE1000040u, xl, xr, cl, cr);
+}
+
+/* Additiver Verlauf (B+F) in der Hintergrundfarbe: am Rand voll, nach innen 0. Hebt das Schwarz des
+ * subtraktiven Verlaufs auf die Clear-Farbe (8,0,0) an, damit Rand und Hintergrund nahtlos sind. */
+#define ALU_EDGE_ADD_COLOR 0x000008u
+static void alundra_edge_add_build(uint32_t pkt, int32_t x_dark, int32_t x_clear) {
+    int32_t xl = x_dark < x_clear ? x_dark : x_clear;
+    int32_t xr = x_dark < x_clear ? x_clear : x_dark;
+    alundra_quad_build_e1(pkt, 0xE1000020u, xl, xr, x_dark < x_clear ? ALU_EDGE_ADD_COLOR : 0u,
+                          x_dark < x_clear ? 0u : ALU_EDGE_ADD_COLOR);
 }
 
 static void alundra_edge_build(uint32_t pkt, int32_t x_dark, int32_t x_clear, uint32_t dark) {
@@ -114,28 +128,32 @@ static void alundra_edgefade_hook(struct CPUState* cpu, uint32_t address) {
 
     uint32_t slot = ot + ALU_EDGE_SLOT * 4u;
     uint32_t head = psx_mod_read_word(slot);
-    uint32_t next = head & 0x00FFFFFFu, first = 0;
+    uint32_t next = head & 0x00FFFFFFu;
 
-    /* rechts zuerst bauen, damit links vorne in der Kette steht */
-    if (room->w_r > 0 && xr - room->w_r < 320 + m && xr > -m) {
-        uint32_t pkt = g_alu_edge_arena + 64u;
-        alundra_edge_build(pkt, xr, xr - room->w_r, room->dark);
-        psx_mod_write_word(pkt, ((ALU_EDGE_WORDS - 1u) << 24) | next);
-        next = pkt & 0x00FFFFFFu;
-        first = pkt;
-    }
+    /* Kette: links sub, links add, rechts sub, rechts add (Arena: 0, 256, 64, 320) */
+    uint32_t pk[4], n = 0;
     if (room->w_l > 0 && xl + room->w_l > -m && xl < 320 + m) {
-        uint32_t pkt = g_alu_edge_arena;
-        alundra_edge_build(pkt, xl, xl + room->w_l, room->dark);
-        psx_mod_write_word(pkt, ((ALU_EDGE_WORDS - 1u) << 24) | next);
-        next = pkt & 0x00FFFFFFu;
-        first = pkt;
+        alundra_edge_build(g_alu_edge_arena, xl, xl + room->w_l, room->dark);
+        alundra_edge_add_build(g_alu_edge_arena + 256u, xl, xl + room->w_l);
+        pk[n++] = g_alu_edge_arena;
+        pk[n++] = g_alu_edge_arena + 256u;
     }
-    if (first) psx_mod_write_word(slot, (head & 0xFF000000u) | (first & 0x00FFFFFFu));
+    if (room->w_r > 0 && xr - room->w_r < 320 + m && xr > -m) {
+        alundra_edge_build(g_alu_edge_arena + 64u, xr, xr - room->w_r, room->dark);
+        alundra_edge_add_build(g_alu_edge_arena + 320u, xr, xr - room->w_r);
+        pk[n++] = g_alu_edge_arena + 64u;
+        pk[n++] = g_alu_edge_arena + 320u;
+    }
+    if (!n) return;
+    for (uint32_t i = n; i-- > 0;) {
+        psx_mod_write_word(pk[i], ((ALU_EDGE_WORDS - 1u) << 24) | next);
+        next = pk[i] & 0x00FFFFFFu;
+    }
+    psx_mod_write_word(slot, (head & 0xFF000000u) | next);
 }
 
 static void alundra_edgefade_activate(void) {
-    g_alu_edge_arena = psx_mod_alloc_gpu_dma_memory(256u, 16u);
+    g_alu_edge_arena = psx_mod_alloc_gpu_dma_memory(384u, 16u);
 }
 
 PSX_MOD_CONSTRUCTOR(alundra_register_edgefade_plugin) {

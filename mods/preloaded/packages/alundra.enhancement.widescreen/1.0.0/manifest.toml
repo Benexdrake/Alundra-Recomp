@@ -59,6 +59,18 @@ feature = "map_edge_fade"
 id = "alundra.edgefade"
 
 [[feature]]
+id = "pillarbox"
+name = "Schwarze Seitenbalken (4:3-Szenen)"
+description = "Black bars left and right in selected scenes that should only show 4:3."
+group = "Visual"
+channel = "experimental"
+default_enabled = true
+
+[[plugin]]
+feature = "pillarbox"
+id = "alundra.pillarbox"
+
+[[feature]]
 id = "cheat_infinite_hp"
 name = "Cheat: Unendlich HP"
 description = "Testhilfe: haelt die HP jederzeit auf dem Maximum."

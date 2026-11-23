@@ -27,13 +27,23 @@ Action-adventure by Matrix Software (PlayStation, 1997), recompiled to run nativ
 
 - **Wide tile renderer:** the game is a pure 2D tile game, so it runs in `full_2d` mode. The main-program tile loop is widened to 21 columns of 24x16 sprites through instruction hooks.
 - **Map edge:** maps are 52 columns wide; the column count is clamped at the map edge, so no garbage or streaks appear beyond it.
-- **Soft map edge:** a Gouraud subtractive quad (28 px) fades the world smoothly to black at each map side. It is skipped when no bright tiles lie in its zone (small rooms, dark edge tiles).
-- **Outside-of-map fill:** where the camera shows more than the map, the area is filled in the colour of the edge column (vertical gradient, median-sampled from VRAM). Under the ring/light mask a fixed per-room colour is used; rooms are recognised by a hash of the map rows.
+- **Soft map edge (feature `map_edge_fade`):** a Gouraud subtractive quad (28 px) fades the world smoothly to black at each map side. It is skipped when no bright tiles lie in its zone (small rooms, dark edge tiles).
+- **Outside-of-map fill (feature `background_color`):** where the camera shows more than the map, the area is filled in the colour of the edge column (vertical gradient, median-sampled from VRAM). Under the ring/light mask a fixed per-room colour is used; rooms are recognised by a hash of the map rows.
 - **Clouds / shadow overlay** widened to the full 16:9 width (28 KB GPU DMA arena).
-- **Dark rooms (mine):** the darkness layer only exists for the 4:3 area, so a flat 90 % black (subtractive) quad is added on each side where the layer has full-height edge columns and nothing beyond them.
+- **Dark rooms (mine):** the darkness layer only exists for the 4:3 area, so a flat dark (subtractive, ~40 %) quad is added on each side where the layer has full-height edge columns and nothing beyond them. Mine room 3 uses a fixed per-room fill colour.
+- **Skeleton rooms:** in two rooms where edge quads/fill flickered or looked like blocks, nothing is drawn at the edge; the background is the game's clear colour.
+- **Tile buffer overflow fix:** with two tile layers the 16:9 tile packets overflowed the game's buffer (VRAM noise); both buffers now live in a private arena. Old save states do not load any more.
 - **Save/load room fog** covers the whole width without flicker (shifted copies of the 6 fog strips).
 - **Ring / light mask** (120 strips) replaced by quads stretched by 4/3.
 - **Gate shadow:** the stray black shadow circle under the gate pillar is collapsed.
+
+### Black side bars in 4:3 scenes (feature `pillarbox`, experimental)
+
+For a list of rooms/scenes that are meant to be shown in 4:3 only (no cutscene flag was found), black bars are drawn left and right in the topmost OT slot. Room list: see `mods/alundra_pillarbox.c`.
+
+### Cheat (feature `cheat_infinite_hp`)
+
+Test aid: keeps HP at the maximum. Off by default.
 
 ### HUD in the screen corners (feature `hud_corners`)
 
@@ -48,7 +58,7 @@ Item slots bottom left, hearts top left, gilder bottom right. Handles the 10-HP 
 
 Sprite/object pop-in at the edges, menus and dialogs with the new HUD, FMV, audio, edge quad on outdoor maps with uniform grass. Interior rooms may have a different map width than 52. Not every room has been checked for the outside-of-map colour.
 
-Each feature can be switched off in `mods/state.toml` (`[[feature]] id = "hud_corners"`, `enabled = false`).
+Features: `widescreen`, `hud_corners`, `background_color`, `map_edge_fade`, `pillarbox`, `cheat_infinite_hp`. Each can be switched off in `mods/state.toml` (`[[feature]] id = "hud_corners"`, `enabled = false`).
 
 ## Screenshots
 
