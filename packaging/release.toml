@@ -11,6 +11,7 @@ player_game_toml = "packaging/release/game.toml"
 
 [build]
 cmake_args = ["-DPSX_SDL_BACKEND=SDL3", "-DPSX_PGXP_VARIANT=OFF"]
+selective_pgo = false
 # Selective PGO defaults on for supported native GNU/Ninja toolchains. Do not
 # add per-title profile paths or reuse another build's training data.
 
