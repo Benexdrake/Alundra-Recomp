@@ -12,12 +12,22 @@ Static recompilation of **Alundra** built on
 
 Action-adventure by Matrix Software (PlayStation, 1997), recompiled to run natively with modern enhancements.
 
-| | |
+| Title | Alundra |
 |---|---|
+| Developer | Matrix Software |
+| Publisher (NA) | Working Designs |
 | Players | 1 |
 | Region | North America (English, SLUS-00553) |
-| Publisher | - |
-| Year | - |
+| Year | 1997 |
+
+## Download
+
+Get the latest build from the [Releases page](https://github.com/Benexdrake/Alundra-Recomp/releases/latest):
+
+- **Windows (x64):** `alundra-vX.Y.Z-windows-x64.zip` - unzip, start `Alundra.exe`.
+- **Linux (x86_64), experimental:** `alundra-vX.Y.Z-linux-x86_64.AppImage` - untested beyond the launcher.
+
+No game data is included. On first start choose your own dump of the **North American disc (SLUS-00553)**; see [DISC.md](DISC.md). The German release (SLES-01256) is not supported by this version.
 
 ## What is built in
 
