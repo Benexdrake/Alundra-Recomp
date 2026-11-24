@@ -2,7 +2,7 @@
 
 ## v0.2.0 - North America (SLUS-00553)
 
-This release targets the **North American disc (SLUS-00553)**. The German release (SLES-01256) from the 0.1.0 preview is not part of this package.
+This release targets **Alundra - Definitive Edition v4 (USA)** (fan patch over the US v1.1 disc, serial SLUS-00553), converted with `tools/make_us_disc.py`. The German release (SLES-01256) from the 0.1.0 preview is not part of this package.
 
 - **16:9 widescreen** for the 2D tile renderer, with a soft fade at the map edge, widened clouds and shadow overlay, widened save/load room fog and a stretched ring/light mask.
 - **Outside-of-map fill:** where the camera shows more than the map, the area is filled in the colour of the map edge (per-room colours where needed).
@@ -14,4 +14,4 @@ This release targets the **North American disc (SLUS-00553)**. The German releas
 Not yet tested: sprite and object pop-in at the screen edges, dialogs with the new HUD, interiors with a different map width, and rooms not listed as checked in the README.
 
 Save states from older builds do not load. Native memory-card saves are unaffected.
-You need your own Alundra disc (USA, SLUS-00553); see [DISC.md](DISC.md).
+You need your own copy of Alundra - Definitive Edition v4 (USA), converted with `tools/make_us_disc.py` (in the source repository); see [DISC.md](DISC.md). The game always starts in EASY mode.

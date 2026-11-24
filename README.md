@@ -17,7 +17,7 @@ Action-adventure by Matrix Software (PlayStation, 1997), recompiled to run nativ
 | Developer | Matrix Software |
 | Publisher (NA) | Working Designs |
 | Players | 1 |
-| Region | North America (English, SLUS-00553) |
+| Region | North America (English, SLUS-00553), Definitive Edition v4 |
 | Year | 1997 |
 
 ## Download
@@ -27,11 +27,19 @@ Get the latest build from the [Releases page](https://github.com/Benexdrake/Alun
 - **Windows (x64):** `alundra-vX.Y.Z-windows-x64.zip` - unzip, start `Alundra.exe`.
 - **Linux (x86_64), experimental:** `alundra-vX.Y.Z-linux-x86_64.AppImage` - untested beyond the launcher.
 
-No game data is included. On first start choose your own dump of the **North American disc (SLUS-00553)**; see [DISC.md](DISC.md). The German release (SLES-01256) is not supported by this version.
+No game data is included. You need your own copy of *Alundra - Definitive Edition v4 (USA)*, converted with `tools/make_us_disc.py` (see below and [DISC.md](DISC.md)). The German release (SLES-01256) is not supported by this version.
 
-### Definitive Edition and other patched discs
+### Required disc: Alundra Definitive Edition v4 (USA)
 
-The fan-made [Alundra Definitive Edition](https://github.com/Pixelplix93/Alundra-Definitive-Edition) patch (restored Japanese content, bug fixes, difficulty modes, 60 Hz for PAL) is **not supported and untested** with this recompilation. A patched disc has different checksums than the original dump, so the launcher will reject it. Even if it were accepted, the widescreen and HUD hooks use fixed code and memory addresses of the unpatched North American game and could break on changed code. Use an unmodified SLUS-00553 dump.
+This version runs on the fan-made [Alundra Definitive Edition](https://github.com/Pixelplix93/Alundra-Definitive-Edition) v4 (USA), which is itself an xdelta patch over *Alundra (USA) (v1.1)*. An unpatched retail US disc and the German disc are **not** accepted by the launcher.
+
+The Definitive Edition boots a loader (`EPIX.EXE`) with a difficulty menu. The recompilation needs the game executable as the boot file, so two sectors (54 bytes) have to be edited first. Use the helper script:
+
+```
+python tools/make_us_disc.py "Alundra - Definitive Edition v4 (USA).bin" C:\Discs\AlundraUS
+```
+
+It checks the MD5 of the input and output and writes `game.bin` plus `Alundra.cue`. The game then always starts in EASY mode (no difficulty menu). Other Definitive Edition languages and versions are not supported. See [DISC.md](DISC.md).
 
 ## What is built in
 
