@@ -15,7 +15,7 @@ Action-adventure by Matrix Software (PlayStation, 1997), recompiled to run nativ
 | | |
 |---|---|
 | Players | 1 |
-| Region | Europe (German, SLES-01256) |
+| Region | North America (English, SLUS-00553) |
 | Publisher | - |
 | Year | - |
 
@@ -51,7 +51,7 @@ Item slots bottom left, hearts top left, gilder bottom right. Handles the 10-HP 
 
 ### Speed and loading
 
-- **60 fps** instead of PAL 50 Hz.
+- **60 fps** (the NTSC-U version already runs at 60 Hz).
 - **Fast savegame loading:** turbo stays on while the memory card is scanned sector by sector.
 
 ### Not yet tested
@@ -81,10 +81,10 @@ Known assignments from the code (not yet mapped to the maps below):
 |---|-----|----------------|--------|--------|
 | 1 | World | | | [ ] |
 | 2 | World (In-Game Map) | | | [ ] |
-| 3 | Inoa Village | 0xB440C2D (Dorf) + Häuser | Schwarz außen / Häuser Rot | [ ] |
-| 4 | Inside Coal Mine | 0x877DDF27, 0xD78EE04C, 0x56AA69AF | s.o. | [ ] |
-| 5 | Wendell's Dream | | | [ ] |
-| 6 | Klark Ship | | | [ ] |
+| 3 | Inoa Village | 0xB440C2D (Dorf) + Häuser | Schwarz außen / Häuser Rot | [X] |
+| 4 | Inside Coal Mine | | s.o. | [X] |
+| 5 | Wendell's Dream | | | [X] |
+| 6 | Klark Ship | | | [X] |
 | 7 | Bonaire's Dream | | | [ ] |
 | 8 | Giles's Dream | | | [ ] |
 | 9 | Kline's Nightmare | | | [ ] |
@@ -126,8 +126,6 @@ Known assignments from the code (not yet mapped to the maps below):
 | 45 | Lake | | | [ ] |
 | 46 | Lake Shrine | | | [ ] |
 | 47 | Lake Shrine Interior | | | [ ] |
-| 48 | Debug (000) | | | [ ] |
-| 49 | Debug (011) | | | [ ] |
 
 ## Screenshots
 
