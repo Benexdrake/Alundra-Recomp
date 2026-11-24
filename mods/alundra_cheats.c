@@ -10,9 +10,9 @@
 
 typedef struct { uint32_t cur; uint32_t max_off; } AluHpSlot;
 static const AluHpSlot k_slots[] = {
-    { 0x800A8284u, 4u },
-    { 0x80127D44u, 4u },
-    { 0x801EB82Cu, 2u },
+    /* US (SLUS-00553), per RAM-Diff 10 -> 6 gefunden. DE: 0x800A8284, 0x80127D44, 0x801EB82C(+2). */
+    { 0x800AA0ECu, 4u },
+    { 0x801AC70Cu, 4u },
 };
 
 /* PSX-Buttons, active-high: Quadrat=bit15, L1=bit10, R1=bit11. */

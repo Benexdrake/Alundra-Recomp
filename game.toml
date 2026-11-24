@@ -3,13 +3,13 @@
 
 [game]
 name = "Alundra"
-id = "SLES-01256"
+id = "SLUS-00553"
 players = 1
-exe = "disc/SLES_012.56"
-disc = "C:\\Discs\\Alundra\\Alundra.cue"
+exe = "disc/SLUS_005.53"
+disc = "C:\\Discs\\AlundraUS\\Alundra.cue"
 load_address = "0x80020000"
-entry_pc = "0x800360F4"
-text_size = "0x0012B000"
+entry_pc = "0x80036044"
+text_size = "0x0012E800"
 stack_base = "0x801FFFF0"
 
 # Digests are for data Track 01 (first BINARY FILE / TRACK 01).
@@ -17,23 +17,23 @@ stack_base = "0x801FFFF0"
 out_dir = "disc"
 bin_name = "game.bin"
 cue_name = "Alundra.cue"
-boot_exe = "SLES_012.56"
-known_sizes = [606049248]
+boot_exe = "SLUS_005.53"
+known_sizes = [565580736]
 known_md5 = [
-  "2589bcff97211726b85fad51435b56aa",
+  "b1a1a01a890cc9f939dd7d14e833bd27",
 ]
 known_sha1 = [
-  "8f3fbe279fcd05659455909ddca7c6671b9030f7",
+  "e0172f00b07467ff3555fd00e51e593d418820ab",
 ]
 known_crc32 = [
-  "4b50d22e",
+  "c14e9fca",
 ]
 
 [recompiler]
 seeds = "seeds/ghidra_funcs.txt"
 out_dir = "generated"
 strict = true
-mod_instruction_sites = ["0x8002CED0", "0x8002CEF0", "0x8002CF04", "0x8002CFD8", "0x8002D14C", "0x8002D150", "0x8002D220", "0x8002D390", "0x8005C538", "0x8005C5F4", "0x8005C4E8", "0x8002D444", "0x800262EC", "0x8005D5E0", "0x8004C0C0", "0x8004C220", "0x8002DDF4", "0x80086CC4"]
+mod_instruction_sites = ["0x8002D1CC", "0x8002D204", "0x8002D1EC", "0x8002D2F0", "0x8002D4B0", "0x8002D778", "0x8005E6B0", "0x8005E6F8", "0x8005E7B8", "0x8002D7A4", "0x8005F784", "0x8008952C", "0x8002E150", "0x8004D588", "0x8004D6B4"]
 
 [runtime]
 window_title = "Alundra Recompiled"
@@ -52,7 +52,7 @@ default_mode = "digital"
 [netplay]
 require_cue = true
 required_tracks = 1
-required_disc_fp = "c2db29fafe0c26353d859473cf5a7389bb8571b67de1af5ab27e08ad8a474357"
+required_disc_fp = "8871074014a437a964eedc744ed0c2d5677e2fd02fa9ae850e9ee7898f52a69b"
 
 [widescreen]
 full_2d = true

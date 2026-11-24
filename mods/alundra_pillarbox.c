@@ -9,8 +9,8 @@
 #include "alundra_common.h"
 #include "cpu_state.h"
 
-#define ALU_BOX_SITE 0x8002D444u
-#define ALU_BOX_WORD 0x00007021u
+#define ALU_BOX_SITE 0x8002D7A4u /* US; DE: 0x8002D444 / 0x00007021 */
+#define ALU_BOX_WORD 0x0000C021u
 #define ALU_BOX_SLOT 959u
 
 typedef struct { uint32_t sig, bsig; } AluBoxRoom;
@@ -34,7 +34,7 @@ static void alundra_pillarbox_hook(struct CPUState* cpu, uint32_t address) {
     for (unsigned i = 0; i < sizeof g_alu_box_rooms / sizeof g_alu_box_rooms[0]; i++)
         if (g_alu_box_rooms[i].sig == sig || g_alu_box_rooms[i].bsig == bsig) hit = 1;
     if (!hit) return;
-    uint32_t ot = psx_mod_read_word(cpu->gpr[29] + 0x58u);
+    uint32_t ot = cpu->gpr[30] /* US: OT-Basis liegt in fp (DE: sp+0x58) */;
     if ((ot & 0xFF000000u) != 0x80000000u) return;
     uint32_t slot = ot + ALU_BOX_SLOT * 4u;
     uint32_t head = psx_mod_read_word(slot);

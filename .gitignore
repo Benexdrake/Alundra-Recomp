@@ -106,3 +106,8 @@ state.toml
 /run_*
 /census.csv
 !/CMakeLists.txt
+
+# DE-Sicherungen waehrend des USA-Ports
+generated.de_main/
+build-debugtools.de_main/
+*.de_main

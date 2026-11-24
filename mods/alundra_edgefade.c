@@ -5,11 +5,12 @@
  * in OT-Slot 959 head-eingefuegt (ueber Welt, unter Wolken und HUD). Keine Heuristik: nur Raeume
  * aus der Tabelle bekommen einen Verlauf, alle anderen nichts. Nur im 16:9-Betrieb (margin > 0).
  */
+#include <stdio.h>
 #include "alundra_common.h"
 #include "cpu_state.h"
 
-#define ALU_EDGE_SITE 0x8002D444u
-#define ALU_EDGE_WORD 0x00007021u
+#define ALU_EDGE_SITE 0x8002D7A4u /* US; DE: 0x8002D444 / Wort 0x00007021 */
+#define ALU_EDGE_WORD 0x0000C021u
 #define ALU_EDGE_SLOT 959u
 #define ALU_EDGE_WORDS 10u /* Tag + E1 + 4 * (Farbe, Vertex) */
 
@@ -80,18 +81,24 @@ static void alundra_edgefade_hook(struct CPUState* cpu, uint32_t address) {
     int32_t m = psx_mod_widescreen_view_x_margin();
     if (m <= 0) return;
     uint32_t sig = alundra_room_sig();
+    {   static unsigned dn; /* DIAG */
+        if ((dn++ % 120u) == 0) { FILE* f = fopen("alundra_diag.txt", "a"); if (f) { fprintf(f, "hook m=%d sig=%08X ot=%08X\n", m, sig, cpu->gpr[30]); fclose(f); } }
+    }
     if (sig == 0) return;
     {   /* Schattenschicht-Rand, raumunabhaengig (vor der Raumtabelle, die ist nur fuer Kartenraender) */
         uint32_t c[4];
         alundra_cloud_edge_counts_take(c);
-        int fill_l = c[0] >= 12 && c[1] == 0, fill_r = c[2] >= 12 && c[3] == 0;
+        int fill_l = c[0] >= 12 && c[1] < 4, fill_r = c[2] >= 12 && c[3] < 4;
+        {   static unsigned dn2; /* DIAG */
+            if ((dn2++ % 120u) == 0) { FILE* f = fopen("alundra_diag.txt", "a"); if (f) { fprintf(f, "counts %u %u %u %u arena=%08X\n", c[0], c[1], c[2], c[3], g_alu_edge_arena); fclose(f); } }
+        }
         if (fill_l || fill_r) {
-            uint32_t ot = psx_mod_read_word(cpu->gpr[29] + 0x58u);
+            uint32_t ot = cpu->gpr[30] /* US: OT-Basis in fp */;
             if ((ot & 0xFF000000u) == 0x80000000u) {
                 uint32_t slot = ot + ALU_EDGE_SLOT * 4u;
                 uint32_t head = psx_mod_read_word(slot);
                 uint32_t next = head & 0x00FFFFFFu;
-                const uint32_t F = 0x808080u; /* 50 % */
+                const uint32_t F = 0x4E4E4Eu; /* gemessen: Original-Dunkelschicht subtrahiert ~9,7/31 (~31 %), grau */
                 if (fill_r) {
                     alundra_quad_build(g_alu_edge_arena + 192u, 320 - ALU_BAND_RAMP, 320, 0u, F);
                     alundra_quad_build(g_alu_edge_arena + 128u, 320, 320 + m, F, F);
@@ -121,7 +128,7 @@ static void alundra_edgefade_hook(struct CPUState* cpu, uint32_t address) {
     }
     if (!room) return;
 
-    uint32_t ot = psx_mod_read_word(cpu->gpr[29] + 0x58u);
+    uint32_t ot = cpu->gpr[30] /* US: OT-Basis in fp */;
     if ((ot & 0xFF000000u) != 0x80000000u) return;
     int32_t cam = (int32_t)psx_mod_read_word(ALU_CAM_X);
     int32_t xl = -cam, xr = room->cols * ALU_TILE_W - cam;

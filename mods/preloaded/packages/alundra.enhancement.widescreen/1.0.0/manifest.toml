@@ -8,7 +8,7 @@ resolver = "declarative"
 save_compatibility = "shared"
 
 [[target]]
-game_id = "SLES-01256"
+game_id = "SLUS-00553"
 
 [[feature]]
 id = "widescreen"

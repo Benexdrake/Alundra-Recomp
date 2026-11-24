@@ -9,7 +9,7 @@
 #include "alundra_common.h"
 #include "cpu_state.h"
 
-#define ALU_BG_SITE 0x80086CC4u
+#define ALU_BG_SITE 0x8008952Cu /* US; DE: 0x80086CC4 */
 #define ALU_BG_WORD 0xAC850000u /* SW $a1, 0($a0) */
 
 uint32_t g_alu_clear_rgb = 0x00000008u; /* zuletzt gezeichnete Clear-Farbe 0x00BBGGRR */

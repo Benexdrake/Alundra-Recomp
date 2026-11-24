@@ -179,6 +179,69 @@ static void alundra_tilebuf(struct CPUState* cpu, uint32_t address) {
     cpu->gpr[3] = ALU_TILEBUF_TILE_B;
 }
 
+
+/* ---- US (SLUS-00553) Varianten der Kachelschleife (Branch usa-slus-00553) ----
+ * Spaltenzahl liegt in s3 (-> SW s3,32($sp)), X-Tabelle in t6 (0x800203F0),
+ * Schleifenende vergleicht t6 mit 0x800203F0 + 2*Spalten. */
+#define R_S3 19
+#define ALU_US_XTAB_ORIG 0x800203F0u
+static void alundra_us_cols_15(struct CPUState* cpu, uint32_t address) {
+    (void)address;
+    cpu->gpr[R_S3] = alundra_clamped_cols(cpu, 15);
+}
+static void alundra_us_cols_14(struct CPUState* cpu, uint32_t address) {
+    (void)address;
+    cpu->gpr[R_S3] = alundra_clamped_cols(cpu, 14);
+}
+static void alundra_us_use_xtab(struct CPUState* cpu, uint32_t address) {
+    (void)address;
+    if (g_alundra_xtab) cpu->gpr[R_T6] = g_alundra_xtab;
+}
+/* SLT v0,t6,v0 (v0 = Original-Tabelle + 2*Spalten): Grenze auf die private Tabelle umlegen. */
+static void alundra_us_xtab_end(struct CPUState* cpu, uint32_t address) {
+    (void)address;
+    if (g_alundra_xtab)
+        cpu->gpr[R_V0] = g_alundra_xtab + (cpu->gpr[R_V0] - ALU_US_XTAB_ORIG);
+}
+
+
+#if ALU_CLOUD_WIDEN
+/* ---- US: Wolken/Schatten-Overlay (Routine ~0x8005E488), Zellen 16x16, 21 -> 30 Spalten ----
+ * s2 = Layer-Index, t0 = Paketbasis, a3 = Karten-Spalte, t1 = x (Start 0, Ende t1<336). */
+static void alundra_us_cloud_base(struct CPUState* cpu, uint32_t address) { /* ADDU s6,t1,zero */
+    (void)address;
+    if (!g_alundra_cloud) return;
+    uint32_t layer = cpu->gpr[18];
+    if (layer >= ALU_CLOUD_LAYERS) layer = 0;
+    cpu->gpr[R_T0] = g_alundra_cloud + layer * ALU_CLOUD_LAYER_SZ;
+}
+static void alundra_us_cloud_row(struct CPUState* cpu, uint32_t address) { /* SUBU t6,t5,t9 */
+    (void)address;
+    if (!g_alundra_cloud) return;
+    int32_t a3 = (int32_t)cpu->gpr[R_A3] - ALU_CLOUD_LEFT_COLS;
+    while (a3 < 0) a3 += ALU_CLOUD_MAPW;
+    cpu->gpr[R_A3] = (uint32_t)a3;
+    cpu->gpr[R_T1] = (uint32_t)(-(int32_t)ALU_CLOUD_LEFT_COLS * 16);
+}
+static void alundra_us_cloud_loop(struct CPUState* cpu, uint32_t address) { /* BNE v0,zero */
+    (void)address;
+    {   /* Randzaehlung fuer die Dunkelraum-Erkennung (s1 = Zahl emittierter Zellen) */
+        static uint32_t prev_s1;
+        uint32_t s1 = cpu->gpr[17];
+        if (s1 != prev_s1) {
+            int32_t x = (int32_t)cpu->gpr[R_T1] - 16;
+            if (x == 0) g_cl_now[0]++;
+            else if (x < 0) g_cl_now[1]++;
+            else if (x == 304) g_cl_now[2]++;
+            else if (x >= 320) g_cl_now[3]++;
+        }
+        prev_s1 = s1;
+    }
+    if (!g_alundra_cloud) return;
+    cpu->gpr[R_V0] = ((int32_t)cpu->gpr[R_T1] < (ALU_CLOUD_COLS - ALU_CLOUD_LEFT_COLS) * 16) ? 1u : 0u;
+}
+#endif
+
 /* ---------------------------------------------------------- Speicher-Nebel */
 /* Save/load room cloud layer: six 64x128 semi-trans sprite strips (cmd 0x66, texture period
  * 320 px = 5 strips) drawn through the generic object draw function in the main EXE. The
@@ -289,6 +352,43 @@ static void alundra_mask_stretch(struct CPUState* cpu, uint32_t address) {
     psx_mod_write_word(slot, (psx_mod_read_word(slot) & 0xFF000000u) | (q & 0x00FFFFFFu));
 }
 
+
+/* US: Ringmaske. Streifen-Routine 0x8005F5C8..0x8005F784 (JR ra): a2 = Sprite, t4 = OT-Slot-Pointer.
+ * Texpage fest 0x3D (nur die Maske mit CLUT 0x7C10 kommt hier vor; DE liest sie aus einer Tabelle). */
+static void alundra_us_mask_stretch(struct CPUState* cpu, uint32_t address) {
+    (void)address;
+    if (!g_alundra_mask) return;
+    uint32_t spr = cpu->gpr[R_A2], slot = cpu->gpr[12];
+    if ((spr & 0xFF000000u) != 0x80000000u || (slot & 0xFF000000u) != 0x80000000u) return;
+    if ((psx_mod_read_word(spr + 4u) >> 24) != 0x67u) return;
+    uint32_t wh = psx_mod_read_word(spr + 16u);
+    uint32_t w = wh & 0xFFFFu, h = wh >> 16;
+    if (h != 4u || w == 0u || w > 256u) return;
+    if ((psx_mod_read_word(slot) & 0x00FFFFFFu) != (spr & 0x00FFFFFFu)) return;
+    uint32_t tp = 0x3Du;
+    uint32_t xy = psx_mod_read_word(spr + 8u);
+    int32_t x = (int16_t)(xy & 0xFFFFu), y = (int16_t)(xy >> 16);
+    uint32_t uvc = psx_mod_read_word(spr + 12u);
+    uint32_t u = uvc & 0xFFu, v = (uvc >> 8) & 0xFFu, clut = uvc >> 16;
+    uint32_t u1 = u + w; if (u1 > 255u) u1 = 255u;
+    uint32_t v1 = v + 4u; if (v1 > 255u) v1 = 255u;
+    uint32_t x0 = (uint32_t)alundra_mask_sx(x) & 0xFFFFu;
+    uint32_t x1 = (uint32_t)alundra_mask_sx(x + (int32_t)w) & 0xFFFFu;
+    uint32_t ya = ((uint32_t)y & 0xFFFFu) << 16, yb = ((uint32_t)(y + 4) & 0xFFFFu) << 16;
+    uint32_t q = g_alundra_mask + (g_alundra_mask_idx++ % ALU_MASK_QUADS) * ALU_MASK_QUAD_SZ;
+    psx_mod_write_word(q, (9u << 24) | (psx_mod_read_word(spr) & 0x00FFFFFFu));
+    psx_mod_write_word(q + 4u, 0x2F808080u);
+    psx_mod_write_word(q + 8u, ya | x0);
+    psx_mod_write_word(q + 12u, (clut << 16) | (v << 8) | u);
+    psx_mod_write_word(q + 16u, ya | x1);
+    psx_mod_write_word(q + 20u, (tp << 16) | (v << 8) | u1);
+    psx_mod_write_word(q + 24u, yb | x0);
+    psx_mod_write_word(q + 28u, (v1 << 8) | u);
+    psx_mod_write_word(q + 32u, yb | x1);
+    psx_mod_write_word(q + 36u, (v1 << 8) | u1);
+    psx_mod_write_word(slot, (psx_mod_read_word(slot) & 0xFF000000u) | (q & 0x00FFFFFFu));
+}
+
 /* ------------------------------------------------------------ Tor-Schatten */
 /* Gate shadow: under a gate the game switches the player's shadow slot from the normal part
  * definition to a second one that is drawn at a fixed height (a black blob at the gate foot).
@@ -296,8 +396,8 @@ static void alundra_mask_stretch(struct CPUState* cpu, uint32_t address) {
  * OT (LW v1,0(t2)): t2 = packet tag, t6 = next part (already +14), a2 = OT slot pointer.
  * The slot pointers that carry the normal player shadow are learned; the same slot with the other
  * definition gets its four vertices collapsed (nothing is drawn). */
-#define ALU_SHADOW_T6_PLAYER 0x800E4D30u /* normal player shadow definition (+14 after advance) */
-#define ALU_SHADOW_T6_GATE   0x800E4D50u /* alternate definition used under gates */
+#define ALU_SHADOW_T6_PLAYER 0x800CC928u /* US;DE 0x800E4D30; normal player shadow definition (+14 after advance) */
+#define ALU_SHADOW_T6_GATE   0x800CC948u /* US;DE 0x800E4D50; alternate definition used under gates */
 static uint32_t g_alundra_player_slot[2];
 static void alundra_shadow_part(struct CPUState* cpu, uint32_t address) {
     (void)address;
@@ -348,6 +448,29 @@ static void alundra_widescreen_activate(void) {
 PSX_MOD_CONSTRUCTOR(alundra_register_widescreen_plugin) {
     (void)psx_mod_register_activation_plugin("alundra.widescreen",
                                              alundra_widescreen_activate);
+    /* US-Sites (SLUS-00553) */
+    (void)psx_mod_register_instruction_plugin("alundra.widescreen", 0x8002D1CCu,
+                                              0xAFB30020u, alundra_us_cols_15);
+    (void)psx_mod_register_instruction_plugin("alundra.widescreen", 0x8002D204u,
+                                              0xAFB30020u, alundra_us_cols_14);
+    (void)psx_mod_register_instruction_plugin("alundra.widescreen", 0x8002D1ECu,
+                                              0xAFB60010u, alundra_first_col);
+    (void)psx_mod_register_instruction_plugin("alundra.widescreen", 0x8002D2F0u,
+                                              0x00438821u, alundra_tilebuf);
+    (void)psx_mod_register_instruction_plugin("alundra.widescreen", 0x8002D4B0u,
+                                              0x260A000Du, alundra_us_use_xtab);
+    (void)psx_mod_register_instruction_plugin("alundra.widescreen", 0x8002D778u,
+                                              0x01C2102Au, alundra_us_xtab_end);
+    (void)psx_mod_register_instruction_plugin("alundra.widescreen", 0x8005F784u,
+                                              0x03E00008u, alundra_us_mask_stretch);
+#if ALU_CLOUD_WIDEN
+    (void)psx_mod_register_instruction_plugin("alundra.widescreen", 0x8005E6B0u,
+                                              0x0120B021u, alundra_us_cloud_base);
+    (void)psx_mod_register_instruction_plugin("alundra.widescreen", 0x8005E6F8u,
+                                              0x01B97023u, alundra_us_cloud_row);
+    (void)psx_mod_register_instruction_plugin("alundra.widescreen", 0x8005E7B8u,
+                                              0x1440FFD1u, alundra_us_cloud_loop);
+#endif
     (void)psx_mod_register_instruction_plugin("alundra.widescreen", 0x8002CED0u,
                                               0xAFB80018u, alundra_cols_15);
     (void)psx_mod_register_instruction_plugin("alundra.widescreen", 0x8002CF04u,
@@ -362,7 +485,7 @@ PSX_MOD_CONSTRUCTOR(alundra_register_widescreen_plugin) {
                                               0x8FBF008Cu, alundra_cloud_strip);
     (void)psx_mod_register_instruction_plugin("alundra.widescreen", 0x8005D5E0u,
                                               0x03E00008u, alundra_mask_stretch);
-    (void)psx_mod_register_instruction_plugin("alundra.widescreen", 0x8002DDF4u,
+    (void)psx_mod_register_instruction_plugin("alundra.widescreen", 0x8002E150u,
                                               0x8D430000u, alundra_shadow_part);
 #if ALU_CLOUD_WIDEN
     (void)psx_mod_register_instruction_plugin("alundra.widescreen", 0x8005C538u,

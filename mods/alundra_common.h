@@ -11,9 +11,9 @@
 #define ALU_TILE_W        24
 #define ALU_MAP_COLS      52  /* Außenkarten; Innenräume können abweichen */
 #define ALU_MAP_PX        (ALU_MAP_COLS * ALU_TILE_W)
-#define ALU_CAM_X         0x800E4328u
-#define ALU_CAM_Y         0x800E432Cu
-#define ALU_MAP_ROWS_PTR  0x800DD86Cu /* Zeilenbasis, 60 Zeilen à 416 B */
+#define ALU_CAM_X         0x801EF434u /* US (SLUS-00553); DE: 0x800E4328 */
+#define ALU_CAM_Y         0x801EF438u /* US; DE: 0x800E432C */
+#define ALU_MAP_ROWS_PTR  0x801AC6C4u /* US; DE: 0x800DD86C */ /* Zeilenbasis, 60 Zeilen à 416 B */
 
 /* Raum-Signatur: FNV-1a über die Kartenzeilen (0 = keine Karte geladen). */
 static inline uint32_t alundra_room_sig(void) {

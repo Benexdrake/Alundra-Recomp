@@ -50,8 +50,8 @@ psxrecomp_add_game_runtime(psx-runtime
     # Committed game C (psxrecomp_cli.py generate; git add generated). Release
     # CI configures with -DPSXRECOMP_REQUIRE_GAME_C=ON so a checkout without
     # it fails instead of building a setup host.
-    GEN_MARKER "generated/SLES_012.56_dispatch.c"
-    GEN_FULL_GLOB "generated/SLES_012.56_full_*.c"
+    GEN_MARKER "generated/SLUS_005.53_dispatch.c"
+    GEN_FULL_GLOB "generated/SLUS_005.53_full_*.c"
     CODEGEN_SETUP_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/codegen_setup.c"
 )
 
