@@ -33,3 +33,7 @@ boots a loader and is **not** accepted. Run
 
 to edit two sectors (SYSTEM.CNF and the `EASY_005.53` directory entry, 54 bytes).
 The result has the hashes above. The game then always starts in EASY mode.
+
+Only v4 (MD5 above) has been tested. The author's GitHub releases currently ship
+v4.1, which is untested here (its executable may differ). No game images are
+provided or linked by this project.

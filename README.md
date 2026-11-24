@@ -39,6 +39,8 @@ The Definitive Edition boots a loader (`EPIX.EXE`) with a difficulty menu. The r
 python tools/make_us_disc.py "Alundra - Definitive Edition v4 (USA).bin" C:\Discs\AlundraUS
 ```
 
+**Version note:** development and testing used the v4 image (MD5 `5b14a3d8b572cb66d69b7f232099d4ec`, 565,580,736 bytes). The author's GitHub releases currently offer only **v4.1**, which is **untested** with this recompilation: its game executable may differ and the hooks use fixed addresses. The script accepts only the v4 image. This project does not provide or link game images.
+
 It checks the MD5 of the input and output and writes `game.bin` plus `Alundra.cue`. The game then always starts in EASY mode (no difficulty menu). Other Definitive Edition languages and versions are not supported. See [DISC.md](DISC.md).
 
 ## What is built in
