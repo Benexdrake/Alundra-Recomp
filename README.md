@@ -29,6 +29,10 @@ Get the latest build from the [Releases page](https://github.com/Benexdrake/Alun
 
 No game data is included. On first start choose your own dump of the **North American disc (SLUS-00553)**; see [DISC.md](DISC.md). The German release (SLES-01256) is not supported by this version.
 
+### Definitive Edition and other patched discs
+
+The fan-made [Alundra Definitive Edition](https://github.com/Pixelplix93/Alundra-Definitive-Edition) patch (restored Japanese content, bug fixes, difficulty modes, 60 Hz for PAL) is **not supported and untested** with this recompilation. A patched disc has different checksums than the original dump, so the launcher will reject it. Even if it were accepted, the widescreen and HUD hooks use fixed code and memory addresses of the unpatched North American game and could break on changed code. Use an unmodified SLUS-00553 dump.
+
 ## What is built in
 
 **Status: actively played.** Every widescreen-related bug found while playing has been fixed.
