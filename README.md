@@ -1,9 +1,9 @@
 # Alundra
 
 <!-- retcomm-readme-metrics -->
-[![GitHub downloads (all assets, all releases)](https://img.shields.io/github/downloads/RetroPortingToolKit/alundra-recomp/total)](https://github.com/RetroPortingToolKit/alundra-recomp/releases)
-[![GitHub downloads (latest release)](https://img.shields.io/github/downloads/RetroPortingToolKit/alundra-recomp/latest/total)](https://github.com/RetroPortingToolKit/alundra-recomp/releases/latest)
-[![GitHub release](https://img.shields.io/github/v/release/RetroPortingToolKit/alundra-recomp)](https://github.com/RetroPortingToolKit/alundra-recomp/releases/latest)
+[![GitHub downloads (all assets, all releases)](https://img.shields.io/github/downloads/Benexdrake/Alundra-Recomp/total)](https://github.com/Benexdrake/Alundra-Recomp/releases)
+[![GitHub downloads (latest release)](https://img.shields.io/github/downloads/Benexdrake/Alundra-Recomp/latest/total)](https://github.com/Benexdrake/Alundra-Recomp/releases/latest)
+[![GitHub release](https://img.shields.io/github/v/release/Benexdrake/Alundra-Recomp)](https://github.com/Benexdrake/Alundra-Recomp/releases/latest)
 <!-- /retcomm-readme-metrics -->
 
 Static recompilation of **Alundra** built on
@@ -56,9 +56,78 @@ Item slots bottom left, hearts top left, gilder bottom right. Handles the 10-HP 
 
 ### Not yet tested
 
-Sprite/object pop-in at the edges, menus and dialogs with the new HUD, FMV, audio, edge quad on outdoor maps with uniform grass. Interior rooms may have a different map width than 52. Not every room has been checked for the outside-of-map colour.
+Sprite/object pop-in at the edges, dialogs with the new HUD, edge quad on outdoor maps with uniform grass. Interior rooms may have a different map width than 52. Not every room has been checked for the outside-of-map colour.
 
 Features: `widescreen`, `hud_corners`, `background_color`, `map_edge_fade`, `pillarbox`, `cheat_infinite_hp`. Each can be switched off in `mods/state.toml` (`[[feature]] id = "hud_corners"`, `enabled = false`).
+
+### Map checklist (outside-of-map colour per room)
+
+Open work: check every Alundra map for the colour shown where the camera sees more than the map (feature `background_color`). Map list from the [VGMaps Alundra atlas](https://www.vgmaps.com/Atlas/PSX/index.htm). Code: `mods/alundra_bgcolor.c` (`alundra_room_color`, switch on the room hash).
+
+Colours (R,G,B), constants in the code: `ALU_BG_GREEN` (0,8,0), `ALU_BG_RED` (8,0,0, default), `ALU_BG_YELLOW` (8,8,0), `ALU_BG_GRAY` (8,8,8), `ALU_BG_BLACK` (0,0,0).
+
+Per room: note the hash (debug build), the measured colour and the status. Status: `[ ]` open, `[x]` checked (colour correct), `[d]` default is fine.
+
+Known assignments from the code (not yet mapped to the maps below):
+
+- GREEN: 0x793D39CF, 0x1B8E3013 (skeleton), 0x489CF39A, 0xC114DD8E, 0x90C7456E (caves), 0x5944BC3C, 0xA5781E10 (crypt), 0x8A1528CF (stairs), 0x32F8209E (stone room with book), edge hash 0x28BF794D (cave)
+- BLACK: 0xD78EE04C, 0x56AA69AF (mine)
+- YELLOW: 0x877DDF27 (mine), 0xB2956EA2, 0x7C900F86
+- GRAY: 0x0C30BD01
+- Sky blue (96,120,136): 0x09B8D459 (outdoor room, clouds on the right)
+- Village: 0xB440C2D (special case)
+
+| # | Map | Rooms / hashes | Colour | Status |
+|---|-----|----------------|--------|--------|
+| 1 | World | | | [ ] |
+| 2 | World (In-Game Map) | | | [ ] |
+| 3 | Inoa Village | 0xB440C2D (Dorf) + Häuser | Schwarz außen / Häuser Rot | [ ] |
+| 4 | Inside Coal Mine | 0x877DDF27, 0xD78EE04C, 0x56AA69AF | s.o. | [ ] |
+| 5 | Wendell's Dream | | | [ ] |
+| 6 | Klark Ship | | | [ ] |
+| 7 | Bonaire's Dream | | | [ ] |
+| 8 | Giles's Dream | | | [ ] |
+| 9 | Kline's Nightmare | | | [ ] |
+| 10 | Ancient Shrine | | | [ ] |
+| 11 | Coastal Cave | | | [ ] |
+| 12 | Lars' Crypt | 0x5944BC3C, 0xA5781E10, 0x8A1528CF (vermutlich) | GREEN | [ ] |
+| 13 | Reptile Lair | | | [ ] |
+| 14 | Tarn's Manor | | | [ ] |
+| 15 | Megalith Portal Chamber | | | [ ] |
+| 16 | Magyscar | | | [ ] |
+| 17 | Meia's Dream | | | [ ] |
+| 18 | Watermill | | | [ ] |
+| 19 | Fairy Pond | | | [ ] |
+| 20 | Inspiration Point | | | [ ] |
+| 21 | Magyscar Area | | | [ ] |
+| 22 | Nirude's Lair | | | [ ] |
+| 23 | Sanctuary Area | | | [ ] |
+| 24 | Sanctuary | | | [ ] |
+| 25 | Shack | | | [ ] |
+| 26 | Underground Waterway | | | [ ] |
+| 27 | Cliffs Of Madness | | | [ ] |
+| 28 | Coal Mine Area | | | [ ] |
+| 29 | Dark Swamp | | | [ ] |
+| 30 | Despair Desert N | | | [ ] |
+| 31 | Despair Desert S | | | [ ] |
+| 32 | Fire Manor | | | [ ] |
+| 33 | Mt. Torla & Ice Manor | | | [ ] |
+| 34 | Outlook Point | | | [ ] |
+| 35 | Pub & Pool | | | [ ] |
+| 36 | Tarn's Manor Area | | | [ ] |
+| 37 | Elene's Dream | | | [ ] |
+| 38 | Murgg Woods | | | [ ] |
+| 39 | Torla Mountain | | | [ ] |
+| 40 | Tower Of The Great Tree | | | [ ] |
+| 41 | Great Tree | | | [ ] |
+| 42 | Nestus' Dream | | | [ ] |
+| 43 | Nava's Keep | | | [ ] |
+| 44 | Beach & Nava's Cabin | | | [ ] |
+| 45 | Lake | | | [ ] |
+| 46 | Lake Shrine | | | [ ] |
+| 47 | Lake Shrine Interior | | | [ ] |
+| 48 | Debug (000) | | | [ ] |
+| 49 | Debug (011) | | | [ ] |
 
 ## Screenshots
 

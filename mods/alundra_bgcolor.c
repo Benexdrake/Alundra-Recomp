@@ -14,9 +14,17 @@
 
 uint32_t g_alu_clear_rgb = 0x00000008u; /* zuletzt gezeichnete Clear-Farbe 0x00BBGGRR */
 
-/* Farbformat 0x00BBGGRR. Hash: alundra_room_sig(). */
+/* Die Spiel-Hintergruende kommen nur in diesen Kombinationen vor (Format 0x00BBGGRR, Anzeige (R,G,B)). */
+#define ALU_BG_BLACK  0x00000000u /* (0,0,0) */
+#define ALU_BG_RED    0x00000008u /* (8,0,0) Default */
+#define ALU_BG_GREEN  0x00000800u /* (0,8,0) Spiel-Clear */
+#define ALU_BG_YELLOW 0x00000808u /* (8,8,0) */
+#define ALU_BG_GRAY   0x00080808u /* (8,8,8) */
+#define ALU_BG_SKY    0x00887860u /* (96,120,136) Himmel */
+
+/* Farbformat 0x00BBGGRR. Hash: alundra_room_sig(). Map-Liste: docs/Alundra/map-checkliste.md */
 static uint32_t alundra_room_color(uint32_t sig) {
-    if (alundra_room_border_sig() == 0x28BF794Du) return 0x00000800u; /* Hoehle, Gras abgeschnitten: Voll-Hash aendert sich */
+    if (alundra_room_border_sig() == 0x28BF794Du) return ALU_BG_GREEN; /* Hoehle, Gras abgeschnitten: Voll-Hash aendert sich */
     switch (sig) {
     case 0x793D39CFu: /* Skelett-Raeume: Spiel-Clear (0,8,0) */
     case 0x1B8E3013u:
@@ -27,24 +35,24 @@ static uint32_t alundra_room_color(uint32_t sig) {
     case 0xA5781E10u: /* Gruft, zweite Map (2026-11-23): (0,8,0) */
     case 0x8A1528CFu: /* Raum 2026-11-23 (dunkler Raum mit Treppe): Nutzer-Farbe (0,8,0) */
     case 0x32F8209Eu: /* Raum 2026-11-23 (Steinraum mit Buch): Spiel-Clear (0,8,0) */
-        return 0x00000800u;
+        return ALU_BG_GREEN;
     /* Mine (Phase 5): Die Wolken-/Schattenschicht dunkelt nur den 4:3-Teil ab. Alt-Mod: Aussenfuellung
      * (8,8,0) minus ~40 % Schwarz ergab praktisch (0,0,0). Der abgedunkelte Aussenton ist also Schwarz;
      * ohne Fuellquad zeigt der Rand nur das Clear. Messung/Sichtpruefung durch den Nutzer offen
      * (Raum 3: (8,8,0)-Kacheln gegen (0,0,0)-Leerspalten, siehe phase-5). */
     case 0xD78EE04Cu:
     case 0x56AA69AFu:
-        return 0x00000000u;
+        return ALU_BG_BLACK;
     case 0x09B8D459u: /* Aussenraum mit Himmel/Wolken rechts: Himmelblau (R,G,B)=(96,120,136) */
-        return 0x00887860u;
+        return ALU_BG_SKY;
     case 0x877DDF27u: /* Mine-Problemraum: Nutzer-Farbe (8,8,0) */
     case 0xB2956EA2u: /* Raum 2026-11-23: Nutzer-Farbe (R,G,B)=(8,8,0) */
     case 0x7C900F86u: /* Raum 2026-11-23: Screenshot-Farbe (R,G,B)=(8,8,0) */
-        return 0x00000808u;
+        return ALU_BG_YELLOW;
     case 0x0C30BD01u: /* Raum 2026-11-23: Nutzer-Farbe (R,G,B)=(8,8,8) */
-        return 0x00080808u;
+        return ALU_BG_GRAY;
     default: /* Haeuser u. a.: Leere im Raum misst (R,G,B)=(8,0,0), Rand ausserhalb 4:3 war sonst (0,0,0) */
-        return 0x00000008u;
+        return ALU_BG_RED;
     }
 }
 
