@@ -20,21 +20,21 @@
     ],
     "require_cue": true,
     "data_track": {
-      "size": 606049248,
-      "md5": "2589bcff97211726b85fad51435b56aa",
-      "sha1": "8f3fbe279fcd05659455909ddca7c6671b9030f7",
-      "crc32": "4b50d22e"
+      "size": 565580736,
+      "md5": "b1a1a01a890cc9f939dd7d14e833bd27",
+      "sha1": "e0172f00b07467ff3555fd00e51e593d418820ab",
+      "crc32": "c14e9fca"
     },
-    "disc_fp": "c2db29fafe0c26353d859473cf5a7389bb8571b67de1af5ab27e08ad8a474357"
+    "disc_fp": "8871074014a437a964eedc744ed0c2d5677e2fd02fa9ae850e9ee7898f52a69b"
   },
   "exe": {
     "load_address": "0x80020000",
-    "entry_pc": "0x800360F4",
-    "text_size": "0x0012B000",
+    "entry_pc": "0x80036044",
+    "text_size": "0x0012E800",
     "stack_base": "0x801FFFF0"
   },
   "seeds": {
-    "count": 541,
+    "count": 493,
     "source": "boot_exe_jal"
   },
   "warnings": [

@@ -10,7 +10,6 @@ This release targets the **North American disc (SLUS-00553)**. The German releas
 - **HUD in the screen corners:** item slots bottom left, hearts top, gilder bottom right; the 10-HP stone is placed correctly.
 - **Optional 4:3 side bars** in listed scenes (`pillarbox`, experimental).
 - **Fixes:** green blocks in tree tops, a stray gate shadow, tile buffer overflow in 16:9, flicker at the edge in the skeleton rooms.
-- Faster memory-card loading (the BIOS card scan no longer slows loading).
 
 Not yet tested: sprite and object pop-in at the screen edges, dialogs with the new HUD, interiors with a different map width, and rooms not listed as checked in the README.
 

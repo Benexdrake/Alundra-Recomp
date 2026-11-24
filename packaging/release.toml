@@ -7,6 +7,7 @@ name = "alundra"
 display_name = "Alundra"
 exe_name = "Alundra"
 version_file = "VERSION"
+player_game_toml = "packaging/release/game.toml"
 
 [build]
 cmake_args = ["-DPSX_SDL_BACKEND=SDL3", "-DPSX_PGXP_VARIANT=OFF"]

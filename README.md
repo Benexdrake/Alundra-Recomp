@@ -52,7 +52,6 @@ Item slots bottom left, hearts top left, gilder bottom right. Handles the 10-HP 
 ### Speed and loading
 
 - **60 fps** (the NTSC-U version already runs at 60 Hz).
-- **Fast savegame loading:** turbo stays on while the memory card is scanned sector by sector.
 
 ### Not yet tested
 
@@ -142,7 +141,6 @@ Known assignments from the code (not yet mapped to the maps below):
 ### Common to all recomps in this family
 
 - **60 fps:** PAL titles are forced to NTSC 60 Hz timing (`PSX_FORCE_60HZ=0` restores 50 Hz); the game runs ~20 % faster than on a PAL console.
-- **Faster loading:** CD speed-up and turbo while the memory card is being read.
 - **16:9** is provided by a trusted mod plugin (fixed display aspect 16:9) together with widescreen culling hooks; each feature can be switched off in `mods/state.toml`.
 
 Scaffolded with the New Project Layout. See

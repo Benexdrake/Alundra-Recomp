@@ -1,0 +1,57 @@
+# Autofilled by tools/new_project_layout/probe_disc.py from your legal dump.
+# Review before shipping. Runtime quirks / overlay seeds still need hand work.
+
+[game]
+name = "Alundra"
+id = "SLUS-00553"
+players = 1
+exe = "disc/SLUS_005.53"
+load_address = "0x80020000"
+entry_pc = "0x80036044"
+text_size = "0x0012E800"
+stack_base = "0x801FFFF0"
+
+# Digests are for data Track 01 (first BINARY FILE / TRACK 01).
+[prepare_disc]
+out_dir = "disc"
+bin_name = "game.bin"
+cue_name = "Alundra.cue"
+boot_exe = "SLUS_005.53"
+known_sizes = [565580736]
+known_md5 = [
+  "b1a1a01a890cc9f939dd7d14e833bd27",
+]
+known_sha1 = [
+  "e0172f00b07467ff3555fd00e51e593d418820ab",
+]
+known_crc32 = [
+  "c14e9fca",
+]
+
+[recompiler]
+seeds = "seeds/ghidra_funcs.txt"
+out_dir = "generated"
+strict = true
+mod_instruction_sites = ["0x8002D1CC", "0x8002D204", "0x8002D1EC", "0x8002D2F0", "0x8002D4B0", "0x8002D778", "0x8005E6B0", "0x8005E6F8", "0x8005E7B8", "0x8002D7A4", "0x8005F784", "0x8008952C", "0x8002E150", "0x8004D588", "0x8004D6B4"]
+
+[runtime]
+window_title = "Alundra Recompiled"
+memcard_dir = "saves"
+overlay_cache = true
+
+[video]
+renderer = "opengl"
+aspect_ratio = "4:3"
+
+[controller]
+default_mode = "digital"
+
+# Online mount gate: digests + track count + optional TOC fingerprint
+# (see docs/NETPLAY.md).
+[netplay]
+require_cue = true
+required_tracks = 1
+required_disc_fp = "8871074014a437a964eedc744ed0c2d5677e2fd02fa9ae850e9ee7898f52a69b"
+
+[widescreen]
+full_2d = true
