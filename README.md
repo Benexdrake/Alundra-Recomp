@@ -203,7 +203,7 @@ derived from one may be committed; releases run on the bundled MIT OpenBIOS.
 compiled game, built by CI from that tree. Regenerate and commit it whenever
 seeds or the framework pin change.
 
-Default app icon: `assets/psxrecomp.ico` (and `.png` / `.svg`) — Retro-themed controller mark from `psxrecomp/assets/`. Windows builds embed it via `APP_ICON`.
+App icon: `assets/alundra.ico` (and `.png`), embedded in Windows builds via `APP_ICON`. The artwork is the fan icon "Alundra" by **Pademonium** ([DeviantArt](https://www.deviantart.com/pademonium/art/Alundra-915789573)), cropped and converted to `.ico`; all rights to the artwork remain with the artist. The original file is kept as `assets/alundra_by_pademonium_df58jr9-pre.png`. The generic controller mark `assets/psxrecomp.ico` is the framework default and is no longer used.
 
 Optional box art under `launcher_assets/img/` may come from
 [libretro-thumbnails](https://github.com/libretro-thumbnails/libretro-thumbnails)

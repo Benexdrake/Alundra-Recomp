@@ -81,3 +81,15 @@ default_enabled = false
 [[plugin]]
 feature = "cheat_infinite_hp"
 id = "alundra.cheat_hp"
+
+[[feature]]
+id = "cheat_infinite_money"
+name = "Cheat: Unendlich Gilder"
+description = "Testhilfe: haelt die Gilder auf 9999."
+group = "Cheats"
+channel = "experimental"
+default_enabled = false
+
+[[plugin]]
+feature = "cheat_infinite_money"
+id = "alundra.cheat_money"

@@ -75,6 +75,32 @@ static void alundra_edge_build(uint32_t pkt, int32_t x_dark, int32_t x_clear, ui
  * Zelle ausserhalb = die Schattenschicht endet am 4:3-Rand -> aussen abdunkeln. */
 extern void alundra_cloud_edge_counts_take(uint32_t out[4]);
 
+/* Speicher-/Nebelszene (kein Kartenraum, vorgerendertes 4:3-Bild in OT-Slot 0, Nebel in Slot 1):
+ * wie im Dorf links/rechts ein Verlauf Bild -> Hintergrundfarbe. Aufruf einmal pro Frame aus
+ * alundra_cloud_strip (alundra_widescreen.c). Slot 1 = ueber dem Bild (Slot 0), vor den Nebelstreifen (head-insert). */
+#define ALU_FOG_BG_RGB   0x081018u /* 0x00BBGGRR = (R,G,B) (24,16,8), muss zu alundra_bgcolor.c passen */
+#define ALU_FOG_EDGE_W   16
+#define ALU_FOG_EDGE_SLOT 1u
+void alundra_fog_room_edges(uint32_t ot) {
+    if (!g_alu_edge_arena || psx_mod_widescreen_view_x_margin() <= 0) return;
+    if ((ot & 0xFF000000u) != 0x80000000u) return;
+    uint32_t a = g_alu_edge_arena + 384u; /* eigener Bereich: 4 Pakete a 64 B */
+    /* links: Bild beginnt bei x=0; rechts: endet bei x=320 */
+    alundra_edge_build(a, 0, ALU_FOG_EDGE_W, 0xFFu);
+    alundra_quad_build_e1(a + 64u, 0xE1000020u, 0, ALU_FOG_EDGE_W, ALU_FOG_BG_RGB, 0u);
+    alundra_edge_build(a + 128u, 320, 320 - ALU_FOG_EDGE_W, 0xFFu);
+    alundra_quad_build_e1(a + 192u, 0xE1000020u, 320 - ALU_FOG_EDGE_W, 320, 0u, ALU_FOG_BG_RGB);
+    uint32_t slot = ot + ALU_FOG_EDGE_SLOT * 4u;
+    uint32_t head = psx_mod_read_word(slot);
+    uint32_t next = head & 0x00FFFFFFu;
+    for (int i = 3; i >= 0; i--) {
+        uint32_t p = a + (uint32_t)i * 64u;
+        psx_mod_write_word(p, ((ALU_EDGE_WORDS - 1u) << 24) | next);
+        next = p & 0x00FFFFFFu;
+    }
+    psx_mod_write_word(slot, (head & 0xFF000000u) | next);
+}
+
 static void alundra_edgefade_hook(struct CPUState* cpu, uint32_t address) {
     (void)address;
     if (!g_alu_edge_arena) return;
@@ -160,7 +186,7 @@ static void alundra_edgefade_hook(struct CPUState* cpu, uint32_t address) {
 }
 
 static void alundra_edgefade_activate(void) {
-    g_alu_edge_arena = psx_mod_alloc_gpu_dma_memory(384u, 16u);
+    g_alu_edge_arena = psx_mod_alloc_gpu_dma_memory(384u + 256u, 16u);
 }
 
 PSX_MOD_CONSTRUCTOR(alundra_register_edgefade_plugin) {

@@ -12,6 +12,7 @@
 #define ALU_BG_SITE 0x8008952Cu /* US; DE: 0x80086CC4 */
 #define ALU_BG_WORD 0xAC850000u /* SW $a1, 0($a0) */
 
+extern uint32_t g_alu_fog_tick; /* alundra_widescreen.c */
 uint32_t g_alu_clear_rgb = 0x00000008u; /* zuletzt gezeichnete Clear-Farbe 0x00BBGGRR */
 
 /* Die Spiel-Hintergruende kommen nur in diesen Kombinationen vor (Format 0x00BBGGRR, Anzeige (R,G,B)). */
@@ -41,13 +42,13 @@ static uint32_t alundra_room_color(uint32_t sig) {
      * ohne Fuellquad zeigt der Rand nur das Clear. Messung/Sichtpruefung durch den Nutzer offen
      * (Raum 3: (8,8,0)-Kacheln gegen (0,0,0)-Leerspalten, siehe phase-5). */
     case 0xD78EE04Cu:
-    case 0x56AA69AFu:
         return ALU_BG_BLACK;
     case 0x09B8D459u: /* Aussenraum mit Himmel/Wolken rechts: Himmelblau (R,G,B)=(96,120,136) */
         return ALU_BG_SKY;
     case 0x877DDF27u: /* Mine-Problemraum: Nutzer-Farbe (8,8,0) */
     case 0xB2956EA2u: /* Raum 2026-11-23: Nutzer-Farbe (R,G,B)=(8,8,0) */
     case 0x7C900F86u: /* Raum 2026-11-23: Screenshot-Farbe (R,G,B)=(8,8,0) */
+    case 0x56AA69AFu: /* Mine-Speicherraum (US, 2026-11-25): Nutzer-Farbe (8,8,0) */
         return ALU_BG_YELLOW;
     case 0x0C30BD01u: /* Raum 2026-11-23: Nutzer-Farbe (R,G,B)=(8,8,8) */
         return ALU_BG_GRAY;
@@ -84,9 +85,24 @@ static void alundra_bgcolor_hook(struct CPUState* cpu, uint32_t address) {
     g_alu_clear_rgb = cpu->gpr[5] & 0x00FFFFFFu;
 }
 
+/* Nebelszene (Speicherraum, keine Karte): dort schreibt eine allgemeine FillRect-Routine das Clear
+ * (SW v0,0(a1) bei 0x8002E888; v0 = 02BBGGRR, Groesse 0x00F00140 bei sp+20). Die Site 0x8008952C
+ * ist in dieser Szene nicht geladen. Nur wenn der Nebel-Hook in den letzten Frames gefeuert hat. */
+static void alundra_fog_clear_hook(struct CPUState* cpu, uint32_t address) {
+    (void)address;
+    if (g_alu_fog_tick == 0) return;
+    if ((cpu->gpr[2] >> 24) != 0x02u) return;
+    if (psx_mod_read_word(cpu->gpr[29] + 20u) != 0x00F00140u) return;
+    if (psx_mod_widescreen_view_x_margin() <= 0) return;
+    g_alu_fog_tick--; /* der Streifen-Hook setzt es pro Frame neu auf 4; ohne Nebel laeuft es aus */
+    cpu->gpr[2] = 0x02081018u; /* (R,G,B) = (24,16,8) */
+    g_alu_clear_rgb = 0x00081018u;
+}
+
 static void alundra_bgcolor_activate(void) {}
 
 PSX_MOD_CONSTRUCTOR(alundra_register_bgcolor_plugin) {
     (void)psx_mod_register_activation_plugin("alundra.bgcolor", alundra_bgcolor_activate);
     (void)psx_mod_register_instruction_plugin("alundra.bgcolor", ALU_BG_SITE, ALU_BG_WORD, alundra_bgcolor_hook);
+    (void)psx_mod_register_instruction_plugin("alundra.bgcolor", 0x8002E888u, 0xACA20000u, alundra_fog_clear_hook);
 }

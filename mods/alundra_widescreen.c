@@ -249,9 +249,11 @@ static void alundra_us_cloud_loop(struct CPUState* cpu, uint32_t address) { /* B
  * and texpage, which repeat with period 320) of the strip that continues the row at each end.
  * Hooked right after the function's last OT link (0x800262EC); fp = object, s0 = sprite
  * packet, s1 = its E1 texpage packet, OT base pointer at 0x8015AE90, slot = fp.s16[4]*4+0x70. */
-#define ALU_STRIP_OT_PTR 0x8015AE90u
+#define ALU_STRIP_OT_PTR 0x801F48BCu /* US (DE: 0x8015AE90) */
 #define ALU_STRIP_PERIOD 320
 static uint32_t g_alundra_strip; /* 2 x 32 B: E1 packet (8 B) + sprite packet (24 B) */
+uint32_t g_alu_fog_tick;         /* >0: Nebelszene aktiv (gelesen in alundra_bgcolor.c) */
+extern void alundra_fog_room_edges(uint32_t ot);
 
 static void alundra_strip_emit(uint32_t slot_addr, uint32_t s0, uint32_t s1,
                                int32_t new_x, uint32_t pkt) {
@@ -282,6 +284,9 @@ static void alundra_cloud_strip(struct CPUState* cpu, uint32_t address) {
     int32_t m = psx_mod_widescreen_view_x_margin();
     uint32_t ot = psx_mod_read_word(ALU_STRIP_OT_PTR);
     if ((ot & 0xFF000000u) != 0x80000000u) return;
+    g_alu_fog_tick = 4u; /* Nebelszene: Hintergrundfarbe (alundra_bgcolor.c) */
+    /* Seitenrand-Verlauf (alundra_fog_room_edges(ot + 0x70u), einmal pro Frame beim linkesten Streifen)
+     * vom Nutzer abgelehnt (2026-11-25); Funktion bleibt in alundra_edgefade.c. */
     uint32_t slot = ot + (uint32_t)((int32_t)(int16_t)psx_mod_read_half(fp + 4u) * 4) + 0x70u;
     /* leftmost strip x0 is in [-64, 0) (the game wraps it at -64); strip j=1 (0 <= x < 64)
      * continues past the right end, strip j=4 (192 < x < 256) continues past the left end. */
@@ -430,7 +435,7 @@ static void alundra_widescreen_activate(void) {
         for (uint32_t par = 0; par < 2u; par++)
             alundra_tilebuf_init(g_alundra_tilebuf + par * ALU_TILEBUF_STRIDE);
     }
-    g_alundra_strip = psx_mod_alloc_gpu_dma_memory(64u, 16u);
+    g_alundra_strip = psx_mod_alloc_gpu_dma_memory(128u, 16u);
     g_alundra_mask = psx_mod_alloc_gpu_dma_memory(ALU_MASK_QUADS * ALU_MASK_QUAD_SZ, 16u);
 #if ALU_CLOUD_WIDEN
     g_alundra_cloud = psx_mod_alloc_gpu_dma_memory(
@@ -481,8 +486,8 @@ PSX_MOD_CONSTRUCTOR(alundra_register_widescreen_plugin) {
                                               0x00438821u, alundra_tilebuf);
     (void)psx_mod_register_instruction_plugin("alundra.widescreen", 0x8002D14Cu,
                                               0x2609000Du, alundra_use_xtab);
-    (void)psx_mod_register_instruction_plugin("alundra.widescreen", 0x800262ECu,
-                                              0x8FBF008Cu, alundra_cloud_strip);
+    (void)psx_mod_register_instruction_plugin("alundra.widescreen", 0x800261A4u,
+                                              0x8FBF00CCu, alundra_cloud_strip); /* US */
     (void)psx_mod_register_instruction_plugin("alundra.widescreen", 0x8005D5E0u,
                                               0x03E00008u, alundra_mask_stretch);
     (void)psx_mod_register_instruction_plugin("alundra.widescreen", 0x8002E150u,

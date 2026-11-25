@@ -42,6 +42,19 @@ static void alundra_cheat_hp_vblank(void) {
     }
 }
 
+/* Unendlich Gilder (Feature cheat_infinite_money, Plugin alundra.cheat_money).
+ * US: Zeiger bei 0x80119AE8 -> Spielerdaten, Gilder = s16 bei +8 (Spiel deckelt
+ * auf 9999, Anzeige 0x800AA0FC zaehlt dem Wert hinterher). Gelesen ueber
+ * 0x8004F5F4. Wird jeden VBlank auf 9999 gesetzt. */
+static void alundra_cheat_money_vblank(void) {
+    if (!psx_mod_game_started()) return;
+    uint32_t p = psx_mod_read_word(0x80119AE8u);
+    if (p < 0x80010000u || p >= 0x80200000u) return;
+    uint16_t cur = psx_mod_read_half(p + 8u);
+    if (cur < 9999u) psx_mod_write_half(p + 8u, 9999u);
+}
+
 PSX_MOD_CONSTRUCTOR(alundra_register_cheat_plugin) {
     (void)psx_mod_register_vblank_plugin("alundra.cheat_hp", alundra_cheat_hp_vblank);
+    (void)psx_mod_register_vblank_plugin("alundra.cheat_money", alundra_cheat_money_vblank);
 }
