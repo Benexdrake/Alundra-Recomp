@@ -1,5 +1,14 @@
 # Alundra Recompiled release notes
 
+## v2026-11-26 - North America (SLUS-00553)
+
+Versions are now named by date. Same target as 0.2.0: **Alundra - Definitive Edition v4 (USA)**, converted with `tools/make_us_disc.py`.
+
+- Fixes and tweaks to the map-edge fade, background colour fill and widescreen hooks.
+- Updated cheat module and new application icon.
+- Memory-card loading no longer slows the game down (runtime fix).
+- Corrected disc information: the supported disc is the fan-patched Definitive Edition v4, not an unmodified retail disc.
+
 ## v0.2.0 - North America (SLUS-00553)
 
 This release targets **Alundra - Definitive Edition v4 (USA)** (fan patch over the US v1.1 disc, serial SLUS-00553), converted with `tools/make_us_disc.py`. The German release (SLES-01256) from the 0.1.0 preview is not part of this package.
