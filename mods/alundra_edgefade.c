@@ -32,6 +32,20 @@ static const AluEdgeRoom g_alu_edge_rooms[] = {
 
 static uint32_t g_alu_edge_arena; /* 4 Pakete a 64 B */
 
+extern int g_alu_cam_clamp_on; /* alundra_camclamp.c: Kamera ist begrenzt, Rand nicht sichtbar */
+
+/* Spaltenzahl des aktuellen Raums aus der Tabelle, 0 = nicht gelistet. */
+int32_t alundra_edge_room_cols(void) {
+    uint32_t sig = alundra_room_sig();
+    if (sig == 0) return 0;
+    uint32_t bsig = alundra_room_border_sig();
+    for (unsigned i = 0; i < sizeof g_alu_edge_rooms / sizeof g_alu_edge_rooms[0]; i++) {
+        const AluEdgeRoom* r = &g_alu_edge_rooms[i];
+        if ((r->sig && r->sig == sig) || (r->bsig && r->bsig == bsig)) return r->cols;
+    }
+    return 0;
+}
+
 static void alundra_quad_build_e1(uint32_t pkt, uint32_t e1, int32_t xl, int32_t xr, uint32_t cl, uint32_t cr) {
     uint32_t yt = 0u, yb = 240u;
     psx_mod_write_word(pkt + 4u, e1);
@@ -153,6 +167,7 @@ static void alundra_edgefade_hook(struct CPUState* cpu, uint32_t address) {
         if ((r->sig && r->sig == sig) || (r->bsig && r->bsig == bsig)) { room = r; break; }
     }
     if (!room) return;
+    if (g_alu_cam_clamp_on) { g_alu_cam_clamp_on = 0; return; } /* Kamera begrenzt: kein Randverlauf noetig */
 
     uint32_t ot = cpu->gpr[30] /* US: OT-Basis in fp */;
     if ((ot & 0xFF000000u) != 0x80000000u) return;

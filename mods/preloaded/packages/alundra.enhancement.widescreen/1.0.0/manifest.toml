@@ -59,6 +59,18 @@ feature = "map_edge_fade"
 id = "alundra.edgefade"
 
 [[feature]]
+id = "camera_clamp"
+name = "Kamera am Kartenrand begrenzen"
+description = "Keeps the camera inside the map in 16:9 (no view past the map edge) in rooms with a known edge. Replaces the soft edge fade there."
+group = "Visual"
+channel = "experimental"
+default_enabled = true
+
+[[plugin]]
+feature = "camera_clamp"
+id = "alundra.camclamp"
+
+[[feature]]
 id = "pillarbox"
 name = "Schwarze Seitenbalken (4:3-Szenen)"
 description = "Black bars left and right in selected scenes that should only show 4:3."

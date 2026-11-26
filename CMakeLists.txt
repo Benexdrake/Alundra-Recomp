@@ -64,6 +64,7 @@ target_sources(psx-runtime PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/mods/alundra_wid
 target_sources(psx-runtime PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/mods/alundra_hud.c")
 target_sources(psx-runtime PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/mods/alundra_bgcolor.c")
 target_sources(psx-runtime PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/mods/alundra_edgefade.c")
+target_sources(psx-runtime PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/mods/alundra_camclamp.c")
 target_sources(psx-runtime PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/mods/alundra_pillarbox.c")
 target_sources(psx-runtime PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/mods/alundra_cheats.c")
 target_include_directories(psx-runtime PRIVATE "${PSXRECOMP_ROOT}/runtime/include")
